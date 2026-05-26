@@ -55,6 +55,17 @@ type PineConfig = {
     hideOnMobile?: boolean;
 };
 
+type AmbientFlash = {
+    id: string;
+    fromX: number;
+    fromY: number;
+    toX: number;
+    toY: number;
+    everyMs: number;
+    phaseMs: number;
+    color: string;
+};
+
 type Resources = {
     characters: CharacterSourceMap;
     pines: PineSourceMap;
@@ -72,14 +83,15 @@ const CHARACTERS: CharacterConfig[] = [
         y: 258,
         scale: 0.125,
         facing: 'right',
+        sourceFacing: 'left',
         columns: 4,
         rows: 2,
         idleRow: 0,
         attackRow: 1,
-        idleFrames: [0, 1, 2, 3],
-        attackFrames: [0, 1, 2, 3],
-        attackEveryMs: 4300,
-        attackDurationMs: 760,
+        idleFrames: [1],
+        attackFrames: [1],
+        attackEveryMs: 5200,
+        attackDurationMs: 360,
         phaseMs: 0,
         palette: { robe: '#e7edf4', trim: '#94b7d7', hair: '#101016', sash: '#78b7c8', skin: '#dfb391' },
         flash: { fromX: 211, fromY: 226, toX: 265, toY: 211 }
@@ -87,121 +99,117 @@ const CHARACTERS: CharacterConfig[] = [
     {
         id: 'black',
         src: '/assets/home/swordsman-black.webp',
-        x: 252,
-        y: 250,
+        x: 405,
+        y: 258,
         scale: 0.125,
-        facing: 'left',
+        facing: 'right',
+        sourceFacing: 'left',
         columns: 4,
         rows: 2,
         idleRow: 0,
         attackRow: 1,
-        idleFrames: [0, 1, 2, 3],
-        attackFrames: [0, 1, 2, 3],
-        attackEveryMs: 4350,
-        attackDurationMs: 760,
+        idleFrames: [0],
+        attackFrames: [0, 1],
+        attackEveryMs: 4700,
+        attackDurationMs: 360,
         phaseMs: 120,
         palette: { robe: '#151820', trim: '#8b7a63', hair: '#0a0b0d', sash: '#4b4158', skin: '#b98963' },
-        flash: { fromX: 255, fromY: 223, toX: 204, toY: 209 }
+        flash: { fromX: 424, fromY: 230, toX: 483, toY: 216 }
     },
     {
         id: 'master',
         src: '/assets/home/swordsman-master.webp',
-        x: 408,
-        y: 210,
+        x: 390,
+        y: 214,
         scale: 0.108,
         facing: 'left',
+        sourceFacing: 'left',
         columns: 4,
         rows: 2,
         idleRow: 0,
         attackRow: 1,
-        idleFrames: [0, 1, 2, 3],
-        attackFrames: [0, 1, 2, 3],
-        attackEveryMs: 7600,
-        attackDurationMs: 880,
+        idleFrames: [0],
+        attackFrames: [0, 1],
+        attackEveryMs: 6800,
+        attackDurationMs: 420,
         phaseMs: 3200,
         palette: { robe: '#ddd0b4', trim: '#d4af63', hair: '#d6d1c6', sash: '#4c4030', skin: '#d3a783' },
-        flash: { fromX: 408, fromY: 190, toX: 450, toY: 166 }
+        flash: { fromX: 388, fromY: 193, toX: 296, toY: 184 }
     },
     {
         id: 'red',
         src: '/assets/home/swordsman-red.webp',
-        x: 474,
-        y: 239,
+        x: 492,
+        y: 258,
         scale: 0.12,
-        facing: 'right',
+        facing: 'left',
+        sourceFacing: 'left',
         columns: 4,
         rows: 2,
         idleRow: 0,
         attackRow: 1,
-        idleFrames: [0, 1, 2, 3],
-        attackFrames: [0, 1, 2, 3],
-        attackEveryMs: 5100,
-        attackDurationMs: 770,
-        phaseMs: 1700,
+        idleFrames: [0],
+        attackFrames: [0, 1],
+        attackEveryMs: 4700,
+        attackDurationMs: 360,
+        phaseMs: 220,
         palette: { robe: '#8e262b', trim: '#d09a46', hair: '#171114', sash: '#291d1d', skin: '#d99a7d' },
-        flash: { fromX: 493, fromY: 216, toX: 545, toY: 201 }
+        flash: { fromX: 478, fromY: 229, toX: 418, toY: 216 }
     },
     {
         id: 'young',
         src: '/assets/home/swordsman-young.webp',
-        x: 536,
-        y: 226,
+        x: 292,
+        y: 225,
         scale: 0.118,
-        facing: 'left',
+        facing: 'right',
+        sourceFacing: 'left',
         columns: 4,
         rows: 2,
         idleRow: 0,
         attackRow: 1,
-        idleFrames: [0, 1, 2, 3],
-        attackFrames: [0, 1, 2, 3],
-        attackEveryMs: 5100,
-        attackDurationMs: 770,
-        phaseMs: 1840,
+        idleFrames: [0],
+        attackFrames: [0, 1],
+        attackEveryMs: 6200,
+        attackDurationMs: 360,
+        phaseMs: 1500,
         palette: { robe: '#2e6770', trim: '#90dfd5', hair: '#111924', sash: '#d7e2dc', skin: '#dca889' },
-        flash: { fromX: 530, fromY: 207, toX: 480, toY: 196 }
+        flash: { fromX: 313, fromY: 205, toX: 384, toY: 193 }
     }
 ];
 
-const PINES: PineConfig[] = [
+const PINES: PineConfig[] = [];
+
+const AMBIENT_FLASHES: AmbientFlash[] = [
     {
-        id: 'pine-1',
-        src: '/assets/home/pine-1.webp',
-        x: 138,
-        y: 338,
-        scale: 0.18,
-        columns: 2,
-        frameCount: 4,
-        frameMs: 520,
-        phaseMs: 0,
-        sway: 0.012,
-        layer: 'front'
+        id: 'black-red-duel',
+        fromX: 422,
+        fromY: 228,
+        toX: 482,
+        toY: 218,
+        everyMs: 2600,
+        phaseMs: 500,
+        color: '#d9f3ff'
     },
     {
-        id: 'pine-2',
-        src: '/assets/home/pine-2.webp',
-        x: 552,
-        y: 342,
-        scale: 0.18,
-        columns: 2,
-        frameCount: 4,
-        frameMs: 560,
-        phaseMs: 260,
-        sway: 0.01,
-        layer: 'front',
-        hideOnMobile: true
+        id: 'master-white-duel',
+        fromX: 386,
+        fromY: 193,
+        toX: 212,
+        toY: 226,
+        everyMs: 3600,
+        phaseMs: 1200,
+        color: '#fff0aa'
     },
     {
-        id: 'pine-3',
-        src: '/assets/home/pine-3.webp',
-        x: 532,
-        y: 164,
-        scale: 0.105,
-        columns: 2,
-        frameCount: 4,
-        frameMs: 640,
-        phaseMs: 420,
-        sway: 0.008,
-        layer: 'mid'
+        id: 'master-young-duel',
+        fromX: 382,
+        fromY: 194,
+        toX: 310,
+        toY: 205,
+        everyMs: 3900,
+        phaseMs: 2500,
+        color: '#bcefff'
     }
 ];
 
@@ -532,7 +540,7 @@ const getCharacterFrame = (
     const local = (time + character.phaseMs) % character.attackEveryMs;
     const attacking = local < character.attackDurationMs;
     const frames = attacking ? character.attackFrames : character.idleFrames;
-    const frameMs = attacking ? Math.max(95, character.attackDurationMs / frames.length) : 170;
+    const frameMs = attacking ? Math.max(140, character.attackDurationMs / frames.length) : 1000;
     return {
         attacking,
         frame: frames[Math.floor(local / frameMs) % frames.length],
@@ -558,7 +566,7 @@ const drawCharacter = (
     const mobileCharacterScale = size.mobile ? 0.56 : 1;
     const drawWidth = frameWidth * character.scale * viewportScale * mobileCharacterScale;
     const drawHeight = frameHeight * character.scale * viewportScale * mobileCharacterScale;
-    const bob = reducedMotion ? 0 : Math.sin(time * 0.004 + character.phaseMs) * (attacking ? 0.6 : 1.4) * viewportScale;
+    const bob = 0;
     const x = character.x * viewportScale - drawWidth * 0.5;
     const y = character.y * viewportScale - drawHeight + bob;
     const sourceFacing = character.sourceFacing ?? 'left';
@@ -619,6 +627,63 @@ const drawSwordFlashes = (
             );
         });
     });
+
+    AMBIENT_FLASHES.forEach((flash) => {
+        const local = (time + flash.phaseMs) % flash.everyMs;
+        if (local > 360) return;
+        const alpha = 1 - local / 360;
+        withAlpha(ctx, alpha * 0.42, () => {
+            line(
+                ctx,
+                flash.fromX * viewportScale,
+                flash.fromY * viewportScale,
+                flash.toX * viewportScale,
+                flash.toY * viewportScale,
+                flash.color,
+                1
+            );
+            line(
+                ctx,
+                (flash.fromX + 4) * viewportScale,
+                (flash.fromY + 4) * viewportScale,
+                (flash.toX - 4) * viewportScale,
+                (flash.toY + 4) * viewportScale,
+                '#fff8d0',
+                1
+            );
+        });
+    });
+};
+
+const drawDuelGlints = (
+    ctx: CanvasRenderingContext2D,
+    size: VirtualSize,
+    time: number,
+    reducedMotion: boolean
+) => {
+    if (reducedMotion) return;
+    const viewportScale = size.width / DESKTOP_SIZE.width;
+    const pulse = 0.24 + Math.sin(time * 0.002) * 0.06;
+    const glints = [
+        { x: 452, y: 222, w: 28, color: '#e4f8ff' },
+        { x: 300, y: 202, w: 22, color: '#fff0aa' },
+        { x: 345, y: 198, w: 22, color: '#bcefff' }
+    ];
+
+    glints.forEach((glint) => {
+        withAlpha(ctx, pulse, () => {
+            line(
+                ctx,
+                (glint.x - glint.w / 2) * viewportScale,
+                glint.y * viewportScale,
+                (glint.x + glint.w / 2) * viewportScale,
+                (glint.y - 2) * viewportScale,
+                glint.color,
+                1
+            );
+            rect(ctx, glint.x * viewportScale - 1, glint.y * viewportScale - 3, 3, 3, '#fff8d0');
+        });
+    });
 };
 
 const drawCanvasOverlay = (ctx: CanvasRenderingContext2D, size: VirtualSize) => {
@@ -660,7 +725,7 @@ const renderFrame = (
     PINES.filter((pine) => pine.layer === 'mid').forEach((pine) => {
         drawPine(ctx, pine, resources.pines[pine.id], size, time, reducedMotion);
     });
-    CHARACTERS.forEach((character) => {
+    [...CHARACTERS].sort((a, b) => a.y - b.y).forEach((character) => {
         drawCharacter(ctx, character, resources.characters[character.id], size, time, reducedMotion);
     });
     drawSwordFlashes(ctx, size, time, reducedMotion);
@@ -668,6 +733,7 @@ const renderFrame = (
         drawPine(ctx, pine, resources.pines[pine.id], size, time, reducedMotion);
     });
     drawCanvasOverlay(ctx, size);
+    drawDuelGlints(ctx, size, time, reducedMotion);
 };
 
 const HomePixelBackground: React.FC = () => {
