@@ -1,49 +1,65 @@
 import React from 'react';
 
-type Point = { x: number; y: number };
 type Facing = 1 | -1;
 type VirtualSize = { width: number; height: number; mobile: boolean };
+type SpriteSource = HTMLImageElement | HTMLCanvasElement;
 
 type Fighter = {
     x: number;
     y: number;
+    row: number;
     facing: Facing;
-    coat: string;
-    trim: string;
+    scale: number;
     phase: number;
-    active?: boolean;
+    cycleMs: number;
+};
+
+type Flash = {
+    fromX: number;
+    fromY: number;
+    toX: number;
+    toY: number;
 };
 
 const DESKTOP_SIZE = { width: 640, height: 360 };
 const MOBILE_SIZE = { width: 480, height: 270 };
+const SPRITE_PATH = '/assets/home/swordsmen-sprites.webp';
+const BG_PATH = '/assets/home/huashan-bg.webp';
+const FRAME_WIDTH = 48;
+const FRAME_HEIGHT = 64;
+const IDLE_FRAMES = 4;
+const ATTACK_FRAMES = 6;
+const TOTAL_FRAMES = IDLE_FRAMES + ATTACK_FRAMES;
+const SPRITE_ROWS = 4;
 
 const FIGHTERS: Fighter[] = [
-    { x: 247, y: 213, facing: 1, coat: '#594b3e', trim: '#f0d8a2', phase: 0.2, active: true },
-    { x: 305, y: 199, facing: -1, coat: '#294c5d', trim: '#9be7e1', phase: 2.6, active: true },
-    { x: 414, y: 214, facing: 1, coat: '#692827', trim: '#e5aa55', phase: 1.4, active: true },
-    { x: 468, y: 203, facing: -1, coat: '#d8d0bd', trim: '#a8ddff', phase: 3.2, active: true },
-    { x: 353, y: 170, facing: 1, coat: '#273948', trim: '#ced9dc', phase: 4.5, active: false },
+    { x: 292, y: 233, row: 0, facing: 1, scale: 0.86, phase: 0, cycleMs: 5200 },
+    { x: 356, y: 220, row: 1, facing: -1, scale: 0.9, phase: 1300, cycleMs: 5700 },
+    { x: 454, y: 230, row: 2, facing: 1, scale: 0.86, phase: 2800, cycleMs: 6400 },
+    { x: 510, y: 216, row: 3, facing: -1, scale: 0.88, phase: 4200, cycleMs: 6100 },
 ];
 
-const BIRDS = [
-    { x: 118, y: 65, speed: 0.012 },
-    { x: 172, y: 82, speed: 0.009 },
-    { x: 532, y: 74, speed: 0.006 },
+const FLASHES: Flash[] = [
+    { fromX: 318, fromY: 205, toX: 371, toY: 185 },
+    { fromX: 462, fromY: 207, toX: 517, toY: 190 },
+    { fromX: 342, fromY: 229, toX: 286, toY: 207 },
+    { fromX: 498, fromY: 218, toX: 444, toY: 198 },
 ];
 
-const MIST_DOTS = Array.from({ length: 24 }, (_, index) => ({
-    x: (index * 83 + 47) % 700,
-    y: 80 + ((index * 37) % 180),
-    speed: 0.006 + (index % 5) * 0.002,
-    alpha: 0.07 + (index % 4) * 0.025,
+const MIST = Array.from({ length: 22 }, (_, index) => ({
+    x: (index * 91 + 37) % 720,
+    y: 118 + ((index * 43) % 150),
+    width: 24 + (index % 5) * 8,
+    speed: 0.009 + (index % 4) * 0.003,
+    alpha: 0.06 + (index % 4) * 0.025
 }));
 
-const createCanvas = (width: number, height: number) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    return canvas;
-};
+const LEAVES = Array.from({ length: 10 }, (_, index) => ({
+    x: (index * 67 + 320) % 680,
+    y: 120 + ((index * 29) % 145),
+    speed: 0.015 + (index % 3) * 0.006,
+    wobble: index * 0.7
+}));
 
 const getVirtualSize = (): VirtualSize => {
     const mobile = typeof window !== 'undefined' && window.innerWidth < 760;
@@ -69,48 +85,22 @@ const rect = (
     ctx.fillRect(Math.round(x), Math.round(y), Math.round(width), Math.round(height));
 };
 
-const polygon = (ctx: CanvasRenderingContext2D, points: Point[], color: string) => {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i += 1) {
-        ctx.lineTo(points[i].x, points[i].y);
-    }
-    ctx.closePath();
-    ctx.fill();
-};
-
-const strokePolygon = (ctx: CanvasRenderingContext2D, points: Point[], color: string, width = 1) => {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = width;
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i += 1) {
-        ctx.lineTo(points[i].x, points[i].y);
-    }
-    ctx.closePath();
-    ctx.stroke();
-};
-
-const lerp = (from: Point, to: Point, amount: number): Point => ({
-    x: from.x + (to.x - from.x) * amount,
-    y: from.y + (to.y - from.y) * amount
-});
-
-const pixelLine = (
+const line = (
     ctx: CanvasRenderingContext2D,
-    from: Point,
-    to: Point,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
     color: string,
     size = 1
 ) => {
-    const steps = Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y), 1);
+    const steps = Math.max(Math.abs(toX - fromX), Math.abs(toY - fromY), 1);
     ctx.fillStyle = color;
     for (let i = 0; i <= steps; i += size) {
-        const amount = i / steps;
+        const t = i / steps;
         ctx.fillRect(
-            Math.round(from.x + (to.x - from.x) * amount),
-            Math.round(from.y + (to.y - from.y) * amount),
+            Math.round(fromX + (toX - fromX) * t),
+            Math.round(fromY + (toY - fromY) * t),
             size,
             size
         );
@@ -124,59 +114,81 @@ const withAlpha = (ctx: CanvasRenderingContext2D, alpha: number, draw: () => voi
     ctx.globalAlpha = previousAlpha;
 };
 
-const drawSky = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    const sky = ctx.createLinearGradient(0, 0, width, height);
-    sky.addColorStop(0, '#f0b376');
-    sky.addColorStop(0.22, '#b58a84');
-    sky.addColorStop(0.55, '#42546c');
-    sky.addColorStop(1, '#101721');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, width, height);
-
-    const sunX = width * 0.15;
-    const sunY = height * 0.23;
-    withAlpha(ctx, 0.8, () => {
-        rect(ctx, sunX - 11, sunY - 11, 22, 22, '#fee8bf');
-        rect(ctx, sunX - 20, sunY - 5, 40, 10, 'rgba(255,238,196,0.42)');
-        rect(ctx, sunX - 32, sunY + 8, 64, 4, 'rgba(255,211,149,0.28)');
-    });
+const createCanvas = (width: number, height: number) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
 };
 
-const drawMountains = (
+const loadSpriteSheet = () => new Promise<HTMLImageElement | null>((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = SPRITE_PATH;
+});
+
+const drawGeneratedSprite = (
     ctx: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-    time: number,
-    reducedMotion: boolean
+    row: number,
+    frame: number,
+    attacking: boolean
 ) => {
-    const layers = [
-        { base: height * 0.43, peak: 0.20, step: 116, speed: 0.004, color: '#747d88', light: '#a49d98', alpha: 0.32 },
-        { base: height * 0.52, peak: 0.28, step: 104, speed: 0.008, color: '#405466', light: '#637280', alpha: 0.48 },
-        { base: height * 0.66, peak: 0.38, step: 132, speed: 0.014, color: '#202d37', light: '#364654', alpha: 0.62 },
-    ];
+    const x = frame * FRAME_WIDTH;
+    const y = row * FRAME_HEIGHT;
+    const palette = [
+        { robe: '#6b5844', trim: '#f1d4a4', hair: '#16100d', sash: '#d6b06f' },
+        { robe: '#234d60', trim: '#9ee7df', hair: '#12151b', sash: '#d7e8eb' },
+        { robe: '#702b28', trim: '#e3a156', hair: '#160d0c', sash: '#f0d097' },
+        { robe: '#ded6bf', trim: '#a9dbff', hair: '#12151a', sash: '#c8d5d8' },
+    ][row % 4];
+    const idleBob = attacking ? 0 : (frame % 2);
+    const lean = attacking ? Math.min(frame, ATTACK_FRAMES - 1) - 2 : 0;
+    const swordReach = attacking ? 17 + frame * 4 : 18 + (frame % 2) * 2;
+    const swordLift = attacking ? 14 + frame * 2 : 8;
+    const bodyX = x + 22 + lean;
+    const bodyY = y + 30 + idleBob;
 
-    layers.forEach((layer, layerIndex) => {
-        const drift = reducedMotion ? 0 : (time * layer.speed) % layer.step;
-        withAlpha(ctx, layer.alpha, () => {
-            for (let i = -2; i < Math.ceil(width / layer.step) + 3; i += 1) {
-                const x = i * layer.step - drift;
-                const peakY = height * layer.peak - ((i + layerIndex) % 3) * 17;
-                polygon(ctx, [
-                    { x: x - 64, y: layer.base },
-                    { x: x + 12, y: peakY },
-                    { x: x + 92, y: layer.base }
-                ], layer.color);
-                polygon(ctx, [
-                    { x: x + 12, y: peakY },
-                    { x: x + 36, y: layer.base - 12 },
-                    { x: x + 58, y: layer.base }
-                ], layer.light);
-            }
+    rect(ctx, x + 15 + lean, y + 10 + idleBob, 14, 7, palette.hair);
+    rect(ctx, x + 17 + lean, y + 16 + idleBob, 12, 9, '#d9b487');
+    rect(ctx, x + 13 + lean, y + 24 + idleBob, 20, 23, palette.robe);
+    rect(ctx, x + 16 + lean, y + 27 + idleBob, 15, 4, palette.trim);
+    rect(ctx, x + 19 + lean, y + 37 + idleBob, 11, 4, palette.sash);
+    rect(ctx, x + 9 + lean, y + 28 + idleBob, 8, 20, palette.robe);
+    rect(ctx, x + 30 + lean, y + 28 + idleBob, 8, 18, palette.robe);
+    rect(ctx, x + 12 + lean, y + 47 + idleBob, 9, 11, '#171b20');
+    rect(ctx, x + 26 + lean, y + 47 + idleBob, 9, 11, '#171b20');
+    rect(ctx, x + 10 + lean, y + 58, 12, 3, '#080a0d');
+    rect(ctx, x + 25 + lean, y + 58, 12, 3, '#080a0d');
+    rect(ctx, x + 11 + lean, y + 20 + idleBob, 4, 12, palette.hair);
+    rect(ctx, x + 28 + lean, y + 19 + idleBob, 4, 10, palette.hair);
+
+    rect(ctx, bodyX + 4, bodyY - 7, 12, 4, palette.trim);
+    line(ctx, bodyX + 15, bodyY - 6, bodyX + swordReach, bodyY - swordLift, attacking ? '#fff0ad' : '#dce7ea', attacking ? 2 : 1);
+    line(ctx, bodyX + 15, bodyY - 4, bodyX + swordReach, bodyY - swordLift + 2, 'rgba(255,255,255,0.55)', 1);
+
+    if (attacking && frame > 2) {
+        withAlpha(ctx, 0.35, () => {
+            line(ctx, bodyX + 13, bodyY - 3, bodyX + swordReach + 9, bodyY - swordLift + 7, '#99efff', 1);
         });
-    });
+    }
 };
 
-const drawClouds = (
+const createFallbackSpriteSheet = () => {
+    const canvas = createCanvas(FRAME_WIDTH * TOTAL_FRAMES, FRAME_HEIGHT * SPRITE_ROWS);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return canvas;
+    ctx.imageSmoothingEnabled = false;
+
+    for (let row = 0; row < SPRITE_ROWS; row += 1) {
+        for (let frame = 0; frame < TOTAL_FRAMES; frame += 1) {
+            drawGeneratedSprite(ctx, row, frame, frame >= IDLE_FRAMES);
+        }
+    }
+    return canvas;
+};
+
+const drawCloudLayer = (
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number,
@@ -184,196 +196,147 @@ const drawClouds = (
     reducedMotion: boolean,
     mobile: boolean
 ) => {
-    const speed = reducedMotion ? 0.002 : 0.018;
-    const density = mobile ? 5 : 7;
-    const cloudRows = [
-        { y: height * 0.36, h: 13, color: '#ffe3bf', alpha: 0.19, drift: 1.0 },
-        { y: height * 0.46, h: 18, color: '#dad6d2', alpha: 0.23, drift: 0.75 },
-        { y: height * 0.61, h: 23, color: '#aeb9c6', alpha: 0.2, drift: 0.48 },
-        { y: height * 0.82, h: 24, color: '#cfd6df', alpha: 0.16, drift: 0.34 },
+    const rows = [
+        { y: height * 0.25, h: 10, alpha: 0.16, drift: 0.018 },
+        { y: height * 0.42, h: 15, alpha: 0.22, drift: 0.013 },
+        { y: height * 0.62, h: 20, alpha: 0.18, drift: 0.009 },
     ];
+    const count = mobile ? 4 : 6;
 
-    cloudRows.forEach((row, rowIndex) => {
-        const offset = (time * speed * row.drift) % 120;
+    rows.forEach((row, rowIndex) => {
+        const offset = reducedMotion ? 0 : (time * row.drift * (rowIndex + 1)) % 150;
         withAlpha(ctx, row.alpha, () => {
-            for (let i = -2; i < density + 2; i += 1) {
-                const x = i * 112 - offset + (rowIndex % 2) * 34;
-                rect(ctx, x, row.y, 70, row.h, row.color);
-                rect(ctx, x + 24, row.y - 8, 86, row.h - 4, row.color);
-                rect(ctx, x + 62, row.y + 7, 78, row.h - 7, row.color);
+            for (let i = -2; i < count + 2; i += 1) {
+                const x = i * 130 - offset + rowIndex * 37;
+                rect(ctx, x, row.y, 82, row.h, '#f0e2d2');
+                rect(ctx, x + 28, row.y - 8, 94, row.h + 2, '#d5d7d9');
+                rect(ctx, x + 72, row.y + 7, 80, row.h - 3, '#b9c3cf');
             }
         });
     });
 };
 
-const drawPlatform = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    const centerX = width * 0.58;
-    const top = { x: centerX, y: height * 0.31 };
-    const right = { x: centerX + width * 0.25, y: height * 0.53 };
-    const bottom = { x: centerX + width * 0.01, y: height * 0.82 };
-    const left = { x: centerX - width * 0.27, y: height * 0.54 };
-    const edge = { x: bottom.x, y: bottom.y + height * 0.07 };
-
-    polygon(ctx, [left, top, right, bottom], '#6f685a');
-    polygon(ctx, [left, bottom, edge, { x: left.x + 12, y: left.y + 24 }], '#3e3931');
-    polygon(ctx, [right, bottom, edge, { x: right.x - 10, y: right.y + 26 }], '#4a4137');
-    strokePolygon(ctx, [left, top, right, bottom], '#bca36d', 1);
-
-    for (let i = 1; i < 11; i += 1) {
-        const amount = i / 11;
-        pixelLine(ctx, lerp(left, top, amount), lerp(bottom, right, amount), 'rgba(36,32,28,0.52)');
-        pixelLine(ctx, lerp(top, right, amount), lerp(left, bottom, amount), 'rgba(36,32,28,0.42)');
-    }
-
-    for (let i = 0; i < 76; i += 1) {
-        const row = i % 10;
-        const col = Math.floor(i / 10);
-        const x = left.x + 45 + col * 41 + (row % 2) * 10;
-        const y = top.y + 43 + row * 11 - col * 5;
-        rect(ctx, x, y, 11 + (i % 4) * 5, 2, i % 5 === 0 ? '#8d836f' : '#514b42');
-    }
-
-    withAlpha(ctx, 0.24, () => {
-        strokePolygon(ctx, [
-            { x: centerX - 48, y: height * 0.56 },
-            { x: centerX, y: height * 0.49 },
-            { x: centerX + 50, y: height * 0.56 },
-            { x: centerX, y: height * 0.64 },
-        ], '#e0c373', 1);
-        strokePolygon(ctx, [
-            { x: centerX - 31, y: height * 0.56 },
-            { x: centerX, y: height * 0.52 },
-            { x: centerX + 32, y: height * 0.56 },
-            { x: centerX, y: height * 0.61 },
-        ], '#f4de95', 1);
-    });
-};
-
-const drawStoneProps = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    const markers = [
-        { x: width * 0.38, y: height * 0.52 },
-        { x: width * 0.72, y: height * 0.50 },
-        { x: width * 0.49, y: height * 0.70 },
-        { x: width * 0.78, y: height * 0.65 },
-    ];
-
-    markers.forEach((marker, index) => {
-        rect(ctx, marker.x, marker.y - 17, 8, 17, '#8b806d');
-        rect(ctx, marker.x - 2, marker.y - 20, 12, 4, '#b5a179');
-        rect(ctx, marker.x + 2, marker.y - 14, 4, 8, index % 2 === 0 ? '#544d42' : '#4a443d');
-    });
-
-    for (let i = 0; i < 13; i += 1) {
-        rect(ctx, width * 0.83 - i * 11, height * 0.34 + i * 6, 18, 5, i % 2 ? '#4a4339' : '#665d4f');
-    }
-};
-
-const drawStaticPineBase = (
+const drawMistAndLeaves = (
     ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    scale: number
-) => {
-    rect(ctx, x, y - 54 * scale, 8 * scale, 57 * scale, '#3a241b');
-    rect(ctx, x + 5 * scale, y - 44 * scale, 4 * scale, 34 * scale, '#5b3325');
-};
-
-const drawMovingPineFoliage = (
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    scale: number,
+    width: number,
+    height: number,
     time: number,
-    phase: number,
-    reducedMotion: boolean
+    reducedMotion: boolean,
+    mobile: boolean
 ) => {
-    const sway = reducedMotion ? 0 : Math.round(Math.sin(time * 0.002 + phase) * 2);
-    const clusters = [
-        [-30, -58, 54, 13], [-44, -45, 66, 14], [-24, -33, 72, 14],
-        [-57, -24, 50, 12], [10, -18, 62, 13], [-28, -8, 54, 10]
-    ];
-    clusters.forEach(([cx, cy, w, h], index) => {
-        rect(ctx, x + cx * scale + sway, y + cy * scale, w * scale, h * scale, index % 2 ? '#112219' : '#172c21');
-        rect(ctx, x + (cx + 7) * scale + sway, y + (cy - 3) * scale, (w - 18) * scale, 5 * scale, '#31543a');
-        rect(ctx, x + (cx + 9) * scale + sway, y + (cy + h - 3) * scale, (w - 20) * scale, 3 * scale, '#07110d');
-    });
+    const mistCount = mobile ? 10 : MIST.length;
+    for (let i = 0; i < mistCount; i += 1) {
+        const mist = MIST[i];
+        const x = reducedMotion ? mist.x % width : (mist.x + time * mist.speed) % (width + 80) - 40;
+        const y = (mist.y / DESKTOP_SIZE.height) * height;
+        withAlpha(ctx, mist.alpha, () => {
+            rect(ctx, x, y, mist.width, 2, '#eef6f4');
+            rect(ctx, x + 12, y + 5, mist.width * 0.7, 2, '#cbd9e0');
+        });
+    }
+
+    const leafCount = mobile ? 4 : LEAVES.length;
+    for (let i = 0; i < leafCount; i += 1) {
+        const leaf = LEAVES[i];
+        const drift = reducedMotion ? 0 : time * leaf.speed;
+        const x = (leaf.x + drift) % (width + 20) - 10;
+        const y = (leaf.y / DESKTOP_SIZE.height) * height + Math.sin(time * 0.004 + leaf.wobble) * 5;
+        withAlpha(ctx, 0.22, () => {
+            rect(ctx, x, y, 3, 2, i % 2 ? '#b27738' : '#d0a34b');
+        });
+    }
 };
 
-const drawTreesAndFlags = (
+const drawFlags = (
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number,
     time: number,
     reducedMotion: boolean
 ) => {
-    drawMovingPineFoliage(ctx, width * 0.18, height * 0.83, 0.95, time, 0.4, reducedMotion);
-    drawMovingPineFoliage(ctx, width * 0.82, height * 0.89, 1.04, time, 1.6, reducedMotion);
-    drawMovingPineFoliage(ctx, width * 0.68, height * 0.42, 0.52, time, 2.3, reducedMotion);
+    const flagSets = [
+        { x: width * 0.82, y: height * 0.17, s: width / DESKTOP_SIZE.width },
+        { x: width * 0.92, y: height * 0.28, s: width / DESKTOP_SIZE.width * 0.82 },
+    ];
 
-    const flagX = width * 0.82;
-    const flagY = height * 0.43;
-    const wave = reducedMotion ? 0 : Math.round(Math.sin(time * 0.006) * 2);
-    rect(ctx, flagX, flagY - 84, 3, 96, '#2b1d17');
-    rect(ctx, flagX - 17, flagY - 84, 37, 4, '#806746');
-    for (let i = 0; i < 4; i += 1) {
-        rect(ctx, flagX + 4 + wave + i, flagY - 76 + i * 13, 10, 27, '#7f1d1d');
-        rect(ctx, flagX + 14 + wave + i, flagY - 70 + i * 13, 6, 22, '#b5322c');
+    flagSets.forEach((flag, index) => {
+        const wave = reducedMotion ? 0 : Math.round(Math.sin(time * 0.006 + index) * 2);
+        rect(ctx, flag.x, flag.y, 3 * flag.s, 54 * flag.s, 'rgba(40,27,19,0.55)');
+        for (let i = 0; i < 3; i += 1) {
+            rect(ctx, flag.x + 4 * flag.s + wave + i, flag.y + 7 * flag.s + i * 11 * flag.s, 9 * flag.s, 22 * flag.s, 'rgba(135,26,28,0.45)');
+            rect(ctx, flag.x + 12 * flag.s + wave + i, flag.y + 12 * flag.s + i * 11 * flag.s, 5 * flag.s, 16 * flag.s, 'rgba(205,55,50,0.36)');
+        }
+    });
+};
+
+const getSpriteFrame = (time: number, fighter: Fighter, reducedMotion: boolean) => {
+    if (reducedMotion) return { attacking: false, frame: 0 };
+
+    const local = (time + fighter.phase) % fighter.cycleMs;
+    const attacking = local < 680;
+    if (attacking) {
+        return {
+            attacking,
+            frame: IDLE_FRAMES + Math.min(ATTACK_FRAMES - 1, Math.floor(local / (680 / ATTACK_FRAMES)))
+        };
     }
+
+    return {
+        attacking,
+        frame: Math.floor((local - 680) / 145) % IDLE_FRAMES
+    };
 };
 
-const drawSword = (
+const drawFighters = (
     ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    facing: Facing,
-    swing: number,
-    color: string
-) => {
-    const end = { x: x + facing * (22 + swing * 11), y: y - 12 - swing * 8 };
-    pixelLine(ctx, { x: x + facing * 5, y: y - 6 }, end, color, 1);
-    pixelLine(ctx, { x: x + facing * 6, y: y - 5 }, { x: end.x, y: end.y + 1 }, 'rgba(255,255,255,0.62)', 1);
-};
-
-const drawSingleSwordsman = (
-    ctx: CanvasRenderingContext2D,
-    fighter: Fighter,
-    time: number,
-    reducedMotion: boolean,
-    scale = 1
-) => {
-    const actionTime = reducedMotion ? 0 : time;
-    const frame = Math.floor((actionTime * 0.007 + fighter.phase) % 7);
-    const swing = fighter.active && frame >= 4 ? (frame - 3) / 4 : 0;
-    const bob = reducedMotion ? 0 : Math.round(Math.sin(actionTime * 0.005 + fighter.phase) * 1);
-    const lean = fighter.active && !reducedMotion
-        ? Math.round(Math.sin(actionTime * 0.004 + fighter.phase) * 2)
-        : 0;
-    const x = fighter.x * scale + lean;
-    const y = fighter.y * scale + bob;
-    const s = scale;
-
-    rect(ctx, x - 4 * s, y - 25 * s, 9 * s, 5 * s, '#15100d');
-    rect(ctx, x - 6 * s, y - 20 * s, 12 * s, 6 * s, '#d8b684');
-    rect(ctx, x - 8 * s, y - 13 * s, 16 * s, 16 * s, fighter.coat);
-    rect(ctx, x - 6 * s, y - 11 * s, 12 * s, 3 * s, fighter.trim);
-    rect(ctx, x - 9 * s, y + 3 * s, 6 * s, 10 * s, '#171b20');
-    rect(ctx, x + 3 * s, y + 3 * s, 6 * s, 10 * s, '#171b20');
-    rect(ctx, x - 11 * s, y + 13 * s, 10 * s, 3 * s, '#080a0d');
-    rect(ctx, x + 1 * s, y + 13 * s, 10 * s, 3 * s, '#080a0d');
-    rect(ctx, x + fighter.facing * 4 * s, y - 9 * s, fighter.facing * 13 * s, 3 * s, fighter.trim);
-    drawSword(ctx, x, y, fighter.facing, swing, swing > 0.75 ? '#fff2ad' : '#d8e4e7');
-};
-
-const drawSwordsmen = (
-    ctx: CanvasRenderingContext2D,
+    source: SpriteSource,
     width: number,
     time: number,
     reducedMotion: boolean,
     mobile: boolean
 ) => {
     const scale = width / DESKTOP_SIZE.width;
-    const fighters = mobile ? FIGHTERS.slice(0, 4) : FIGHTERS;
-    fighters.forEach((fighter) => drawSingleSwordsman(ctx, fighter, time, reducedMotion, scale));
+    const fighters = mobile ? FIGHTERS.slice(0, 3) : FIGHTERS;
+
+    fighters.forEach((fighter) => {
+        const { frame } = getSpriteFrame(time, fighter, reducedMotion);
+        const drawWidth = FRAME_WIDTH * fighter.scale * scale;
+        const drawHeight = FRAME_HEIGHT * fighter.scale * scale;
+        const x = fighter.x * scale - drawWidth / 2;
+        const y = fighter.y * scale - drawHeight;
+        const bob = reducedMotion ? 0 : Math.sin(time * 0.004 + fighter.phase) * 1.5 * scale;
+
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        if (fighter.facing < 0) {
+            ctx.translate(x + drawWidth, y + bob);
+            ctx.scale(-1, 1);
+            ctx.drawImage(
+                source,
+                frame * FRAME_WIDTH,
+                fighter.row * FRAME_HEIGHT,
+                FRAME_WIDTH,
+                FRAME_HEIGHT,
+                0,
+                0,
+                drawWidth,
+                drawHeight
+            );
+        } else {
+            ctx.drawImage(
+                source,
+                frame * FRAME_WIDTH,
+                fighter.row * FRAME_HEIGHT,
+                FRAME_WIDTH,
+                FRAME_HEIGHT,
+                x,
+                y + bob,
+                drawWidth,
+                drawHeight
+            );
+        }
+        ctx.restore();
+    });
 };
 
 const drawSwordFlash = (
@@ -383,163 +346,82 @@ const drawSwordFlash = (
     reducedMotion: boolean
 ) => {
     if (reducedMotion) return;
+    const local = time % 3300;
+    if (local > 150) return;
     const scale = width / DESKTOP_SIZE.width;
-    const local = time % 2800;
-    if (local > 170) return;
+    const flash = FLASHES[Math.floor(time / 3300) % FLASHES.length];
+    const alpha = 1 - local / 150;
 
-    const flashIndex = Math.floor(time / 2800) % 4;
-    const flashes = [
-        { from: { x: 258, y: 202 }, to: { x: 319, y: 179 } },
-        { from: { x: 421, y: 205 }, to: { x: 479, y: 184 } },
-        { from: { x: 336, y: 169 }, to: { x: 374, y: 151 } },
-        { from: { x: 294, y: 217 }, to: { x: 236, y: 191 } },
-    ];
-    const flash = flashes[flashIndex];
-
-    withAlpha(ctx, 1 - local / 170, () => {
-        pixelLine(ctx, {
-            x: flash.from.x * scale,
-            y: flash.from.y * scale
-        }, {
-            x: flash.to.x * scale,
-            y: flash.to.y * scale
-        }, '#fff4b7', 2);
-        pixelLine(ctx, {
-            x: (flash.from.x - 7) * scale,
-            y: (flash.from.y + 7) * scale
-        }, {
-            x: (flash.to.x - 2) * scale,
-            y: (flash.to.y + 5) * scale
-        }, '#9eeeff', 1);
+    withAlpha(ctx, alpha, () => {
+        line(ctx, flash.fromX * scale, flash.fromY * scale, flash.toX * scale, flash.toY * scale, '#fff2b0', 2);
+        line(ctx, (flash.fromX - 8) * scale, (flash.fromY + 7) * scale, flash.toX * scale, (flash.toY + 5) * scale, '#98efff', 1);
     });
 };
 
-const drawAmbientDetails = (
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-    time: number,
-    reducedMotion: boolean,
-    mobile: boolean
-) => {
-    const dotCount = mobile ? 10 : MIST_DOTS.length;
-    for (let i = 0; i < dotCount; i += 1) {
-        const dot = MIST_DOTS[i];
-        const x = reducedMotion ? dot.x % width : (dot.x + time * dot.speed) % (width + 40) - 20;
-        withAlpha(ctx, dot.alpha, () => {
-            rect(ctx, x, (dot.y / DESKTOP_SIZE.height) * height, 2, 2, i % 3 ? '#d9edf1' : '#fff0bd');
-        });
-    }
-
-    if (!mobile) {
-        BIRDS.forEach((bird, index) => {
-            const x = reducedMotion ? bird.x : (bird.x + time * bird.speed) % (width + 30);
-            const y = bird.y + Math.sin(time * 0.002 + index) * 2;
-            withAlpha(ctx, 0.42, () => {
-                pixelLine(ctx, { x, y }, { x: x + 5, y: y + 2 }, '#1b2028');
-                pixelLine(ctx, { x: x + 5, y: y + 2 }, { x: x + 10, y }, '#1b2028');
-            });
-        });
-    }
-};
-
 const drawOverlay = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    const vignette = ctx.createRadialGradient(
-        width * 0.55,
-        height * 0.52,
-        width * 0.05,
-        width * 0.55,
-        height * 0.52,
-        width * 0.72
-    );
-    vignette.addColorStop(0, 'rgba(0,0,0,0.06)');
-    vignette.addColorStop(0.56, 'rgba(0,0,0,0.20)');
-    vignette.addColorStop(1, 'rgba(0,0,0,0.76)');
-    ctx.fillStyle = vignette;
+    const gradient = ctx.createRadialGradient(width * 0.52, height * 0.48, width * 0.08, width * 0.52, height * 0.48, width * 0.74);
+    gradient.addColorStop(0, 'rgba(0,0,0,0.02)');
+    gradient.addColorStop(0.62, 'rgba(0,0,0,0.10)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0.34)');
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
-    withAlpha(ctx, 0.09, () => {
+    withAlpha(ctx, 0.07, () => {
         for (let y = 0; y < height; y += 4) {
             rect(ctx, 0, y, width, 1, '#000000');
         }
     });
 };
 
-const buildStaticBackground = (width: number, height: number) => {
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return canvas;
-    ctx.imageSmoothingEnabled = false;
-    drawSky(ctx, width, height);
-    return canvas;
-};
-
-const buildStaticForeground = (width: number, height: number) => {
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return canvas;
-    ctx.imageSmoothingEnabled = false;
-
-    drawPlatform(ctx, width, height);
-    drawStoneProps(ctx, width, height);
-    drawStaticPineBase(ctx, width * 0.18, height * 0.83, width / DESKTOP_SIZE.width * 0.95);
-    drawStaticPineBase(ctx, width * 0.82, height * 0.89, width / DESKTOP_SIZE.width * 1.04);
-    drawStaticPineBase(ctx, width * 0.68, height * 0.42, width / DESKTOP_SIZE.width * 0.52);
-    return canvas;
-};
-
 const renderFrame = (
     ctx: CanvasRenderingContext2D,
-    background: HTMLCanvasElement,
-    foreground: HTMLCanvasElement,
     size: VirtualSize,
+    spriteSource: SpriteSource,
     time: number,
     reducedMotion: boolean
 ) => {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, size.width, size.height);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(background, 0, 0);
-    drawMountains(ctx, size.width, size.height, time, reducedMotion);
-    drawClouds(ctx, size.width, size.height, time, reducedMotion, size.mobile);
-    ctx.drawImage(foreground, 0, 0);
-    drawTreesAndFlags(ctx, size.width, size.height, time, reducedMotion);
-    drawSwordsmen(ctx, size.width, time, reducedMotion, size.mobile);
+
+    drawCloudLayer(ctx, size.width, size.height, time, reducedMotion, size.mobile);
+    drawMistAndLeaves(ctx, size.width, size.height, time, reducedMotion, size.mobile);
+    drawFlags(ctx, size.width, size.height, time, reducedMotion);
+    drawFighters(ctx, spriteSource, size.width, time, reducedMotion, size.mobile);
     drawSwordFlash(ctx, size.width, time, reducedMotion);
-    drawAmbientDetails(ctx, size.width, size.height, time, reducedMotion, size.mobile);
     drawOverlay(ctx, size.width, size.height);
 };
 
 const HomePixelBackground: React.FC = () => {
     const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
+    const [spriteSource, setSpriteSource] = React.useState<SpriteSource | null>(null);
+
+    React.useEffect(() => {
+        let cancelled = false;
+        const fallback = createFallbackSpriteSheet();
+        setSpriteSource(fallback);
+        void loadSpriteSheet().then((image) => {
+            if (!cancelled && image) {
+                setSpriteSource(image);
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     React.useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d', { alpha: false });
+        if (!canvas || !spriteSource) return;
+        const ctx = canvas.getContext('2d', { alpha: true });
         if (!ctx) return;
 
         let size = getVirtualSize();
-        let background = buildStaticBackground(size.width, size.height);
-        let foreground = buildStaticForeground(size.width, size.height);
         let reducedMotion = getReducedMotion();
         let animationFrame = 0;
         let lastFrame = 0;
         let pausedByVisibility = document.hidden;
         const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-
-        const applyCanvasSize = () => {
-            const nextSize = getVirtualSize();
-            const changed = nextSize.width !== size.width || nextSize.height !== size.height;
-            size = nextSize;
-            canvas.width = size.width;
-            canvas.height = size.height;
-            if (changed) {
-                background = buildStaticBackground(size.width, size.height);
-                foreground = buildStaticForeground(size.width, size.height);
-            }
-            renderFrame(ctx, background, foreground, size, performance.now(), reducedMotion);
-        };
 
         const stopAnimation = () => {
             if (animationFrame) {
@@ -548,13 +430,19 @@ const HomePixelBackground: React.FC = () => {
             }
         };
 
+        const applyCanvasSize = () => {
+            size = getVirtualSize();
+            canvas.width = size.width;
+            canvas.height = size.height;
+            renderFrame(ctx, size, spriteSource, performance.now(), reducedMotion);
+        };
+
         const animate = (time: number) => {
             const targetFrameMs = reducedMotion ? 500 : size.mobile ? 50 : 33;
             if (!pausedByVisibility && time - lastFrame >= targetFrameMs) {
-                renderFrame(ctx, background, foreground, size, time, reducedMotion);
+                renderFrame(ctx, size, spriteSource, time, reducedMotion);
                 lastFrame = time;
             }
-
             if (!pausedByVisibility) {
                 animationFrame = window.requestAnimationFrame(animate);
             }
@@ -569,6 +457,7 @@ const HomePixelBackground: React.FC = () => {
 
         const handleResize = () => {
             applyCanvasSize();
+            lastFrame = 0;
             startAnimation();
         };
 
@@ -585,7 +474,7 @@ const HomePixelBackground: React.FC = () => {
         const handleMotionChange = (event: MediaQueryListEvent) => {
             reducedMotion = event.matches;
             lastFrame = 0;
-            renderFrame(ctx, background, foreground, size, performance.now(), reducedMotion);
+            renderFrame(ctx, size, spriteSource, performance.now(), reducedMotion);
             startAnimation();
         };
 
@@ -601,17 +490,26 @@ const HomePixelBackground: React.FC = () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             motionQuery?.removeEventListener?.('change', handleMotionChange);
         };
-    }, []);
+    }, [spriteSource]);
 
     return (
-        <canvas
-            ref={canvasRef}
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 h-full w-full opacity-95"
-            style={{
-                imageRendering: 'pixelated'
-            }}
-        />
+        <>
+            <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 bg-cover bg-center"
+                style={{
+                    backgroundImage: `url('${BG_PATH}')`
+                }}
+            />
+            <canvas
+                ref={canvasRef}
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 h-full w-full opacity-95"
+                style={{
+                    imageRendering: 'pixelated'
+                }}
+            />
+        </>
     );
 };
 

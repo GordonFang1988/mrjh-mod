@@ -58,9 +58,9 @@ const LandingPage: React.FC<Props> = ({ onStart, onLoad, onImageManager, onWorld
             {/* Background Effects */}
             <div className="absolute inset-0 bg-black"></div>
             <HomePixelBackground />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.12)_0,rgba(0,0,0,0.32)_43%,rgba(0,0,0,0.9)_100%)]"></div>
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.78)_0%,rgba(0,0,0,0.32)_30%,rgba(0,0,0,0.36)_68%,rgba(0,0,0,0.86)_100%)]"></div>
-            <div className="absolute inset-0 bg-black/15"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.04)_0,rgba(0,0,0,0.18)_44%,rgba(0,0,0,0.64)_100%)]"></div>
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.62)_0%,rgba(0,0,0,0.2)_31%,rgba(0,0,0,0.26)_68%,rgba(0,0,0,0.68)_100%)]"></div>
+            <div className="absolute inset-0 bg-black/5"></div>
             <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.8)_1px,transparent_1px)] [background-size:100%_4px]"></div>
             
             {/* Animated particles or dust could go here */}
