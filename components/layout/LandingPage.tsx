@@ -56,12 +56,12 @@ const LandingPage: React.FC<Props> = ({ onStart, onLoad, onImageManager, onWorld
     return (
         <div className="h-full w-full flex flex-col items-center justify-center relative overflow-hidden bg-black z-40 rounded-xl">
             {/* Background Effects */}
-            <div className="absolute inset-0 bg-black"></div>
+            <div className="absolute inset-0 z-0 bg-black"></div>
             <HomePixelBackground />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.04)_0,rgba(0,0,0,0.18)_44%,rgba(0,0,0,0.64)_100%)]"></div>
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.62)_0%,rgba(0,0,0,0.2)_31%,rgba(0,0,0,0.26)_68%,rgba(0,0,0,0.68)_100%)]"></div>
-            <div className="absolute inset-0 bg-black/5"></div>
-            <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.8)_1px,transparent_1px)] [background-size:100%_4px]"></div>
+            <div className="absolute inset-0 z-[2] bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.02)_0,rgba(0,0,0,0.14)_44%,rgba(0,0,0,0.52)_100%)]"></div>
+            <div className="absolute inset-0 z-[2] bg-[linear-gradient(90deg,rgba(0,0,0,0.54)_0%,rgba(0,0,0,0.16)_31%,rgba(0,0,0,0.2)_68%,rgba(0,0,0,0.58)_100%)]"></div>
+            <div className="absolute inset-0 z-[2] bg-black/5"></div>
+            <div className="absolute inset-0 z-[2] opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.8)_1px,transparent_1px)] [background-size:100%_4px]"></div>
             
             {/* Animated particles or dust could go here */}
 
