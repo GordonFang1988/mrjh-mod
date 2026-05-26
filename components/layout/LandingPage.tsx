@@ -3,7 +3,7 @@ import React from 'react';
 import GameButton from '../ui/GameButton';
 import { GitHubSyncButton } from '../features/Auth/GitHubSyncButton';
 import LandingNoticeModal from './LandingNoticeModal';
-import PixelDuelBackground from './PixelDuelBackground';
+import HomePixelBackground from './HomePixelBackground';
 
 const requestBrowserFullscreen = () => {
     const doc = document as Document & {
@@ -57,9 +57,10 @@ const LandingPage: React.FC<Props> = ({ onStart, onLoad, onImageManager, onWorld
         <div className="h-full w-full flex flex-col items-center justify-center relative overflow-hidden bg-black z-40 rounded-xl">
             {/* Background Effects */}
             <div className="absolute inset-0 bg-black"></div>
-            <PixelDuelBackground />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.05)_0,rgba(0,0,0,0.36)_42%,rgba(0,0,0,0.88)_100%)]"></div>
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.72)_0%,rgba(0,0,0,0.2)_34%,rgba(0,0,0,0.2)_66%,rgba(0,0,0,0.72)_100%)]"></div>
+            <HomePixelBackground />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.12)_0,rgba(0,0,0,0.32)_43%,rgba(0,0,0,0.9)_100%)]"></div>
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.78)_0%,rgba(0,0,0,0.32)_30%,rgba(0,0,0,0.36)_68%,rgba(0,0,0,0.86)_100%)]"></div>
+            <div className="absolute inset-0 bg-black/15"></div>
             <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.8)_1px,transparent_1px)] [background-size:100%_4px]"></div>
             
             {/* Animated particles or dust could go here */}
