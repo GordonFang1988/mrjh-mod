@@ -13,6 +13,7 @@ import {
     同人女主剧情规划结构
 } from '../../types';
 import { applyStateCommand } from '../../utils/stateHelpers';
+import { isDangerousIndexedSocialWrite } from '../../utils/npcCommandSafety';
 import { normalizeCanonicalGameTime } from './timeUtils';
 
 export type 响应命令处理状态 = {
@@ -83,6 +84,82 @@ const 规范化NPC记忆值 = (value: any): { 内容: string; 时间: string } |
     };
 };
 
+const 读取命令NPCID = (command: TavernCommand): string => (
+    读取文本(command.npcId || command.value?.npcId || command.value?.NPCID || command.key)
+);
+
+const 读取命令NPC姓名 = (command: TavernCommand): string => (
+    读取文本(command.npcName || command.value?.npcName || command.value?.NPC姓名 || command.value?.姓名)
+);
+
+const 查找稳定NPC索引 = (social: any[], command: TavernCommand): number => {
+    const list = Array.isArray(social) ? social : [];
+    const idKey = 归一化匹配键(读取命令NPCID(command));
+    const nameKey = 归一化匹配键(读取命令NPC姓名(command));
+
+    if (idKey) {
+        const byId = list.findIndex((npc) => 归一化匹配键(npc?.id) === idKey || 归一化匹配键(`id:${npc?.id || ''}`) === idKey);
+        if (byId >= 0) return byId;
+    }
+    if (nameKey) {
+        const matched = list
+            .map((npc, index) => ({ npc, index }))
+            .filter(({ npc }) => 归一化匹配键(npc?.姓名) === nameKey);
+        if (matched.length === 1) return matched[0].index;
+    }
+    return -1;
+};
+
+const 清理NPC更新对象 = (value: any): Record<string, any> | null => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const blocked = new Set(['id', 'npcId', 'NPCID', '姓名', 'npcName', 'NPC姓名', '记忆', '总结记忆']);
+    const entries = Object.entries(value).filter(([key]) => !blocked.has(key));
+    if (entries.length <= 0) return null;
+    return Object.fromEntries(entries);
+};
+
+const 从稳定命令登记NPC = (
+    social: any[],
+    command: TavernCommand
+): { social: any[]; applied: boolean } => {
+    const list = Array.isArray(social) ? social : [];
+    const value = command.value && typeof command.value === 'object' && !Array.isArray(command.value)
+        ? command.value
+        : {};
+    const npcId = 读取命令NPCID(command) || 读取文本(value.id);
+    const npcName = 读取命令NPC姓名(command);
+    if (!npcId || !npcName) return { social: list, applied: false };
+
+    const payload = {
+        ...value,
+        id: npcId,
+        姓名: npcName,
+        记忆: Array.isArray(value.记忆) ? value.记忆 : []
+    };
+    const targetIndex = 查找稳定NPC索引(list, { ...command, npcId, npcName, value: payload });
+    if (targetIndex < 0) return { social: [...list, payload], applied: true };
+
+    return {
+        social: list.map((npc, index) => index === targetIndex ? { ...npc, ...payload } : npc),
+        applied: true
+    };
+};
+
+const 从稳定命令更新NPC状态 = (
+    social: any[],
+    command: TavernCommand
+): { social: any[]; applied: boolean } => {
+    const list = Array.isArray(social) ? social : [];
+    const targetIndex = 查找稳定NPC索引(list, command);
+    if (targetIndex < 0) return { social: list, applied: false };
+    const patch = 清理NPC更新对象(command.value);
+    if (!patch) return { social: list, applied: false };
+    return {
+        social: list.map((npc, index) => index === targetIndex ? { ...npc, ...patch } : npc),
+        applied: true
+    };
+};
+
 const 从安全命令写入NPC记忆 = (
     social: any[],
     command: TavernCommand
@@ -91,21 +168,7 @@ const 从安全命令写入NPC记忆 = (
     const memory = 规范化NPC记忆值(command.value);
     if (!memory) return { social: list, applied: false };
 
-    const npcId = 读取文本(command.npcId || command.value?.npcId || command.value?.NPCID || command.key);
-    const npcName = 读取文本(command.npcName || command.value?.npcName || command.value?.NPC姓名);
-    const idKey = 归一化匹配键(npcId);
-    const nameKey = 归一化匹配键(npcName);
-
-    let targetIndex = -1;
-    if (idKey) {
-        targetIndex = list.findIndex((npc) => 归一化匹配键(npc?.id) === idKey || 归一化匹配键(`id:${npc?.id || ''}`) === idKey);
-    }
-    if (targetIndex < 0 && nameKey) {
-        const matched = list
-            .map((npc, index) => ({ npc, index }))
-            .filter(({ npc }) => 归一化匹配键(npc?.姓名) === nameKey);
-        if (matched.length === 1) targetIndex = matched[0].index;
-    }
+    const targetIndex = 查找稳定NPC索引(list, command);
     if (targetIndex < 0) return { social: list, applied: false };
 
     const next = list.map((npc, index) => {
@@ -169,6 +232,20 @@ export const 执行响应命令处理 = (
                 }
                 return;
             }
+            if (cmd?.action === 'registerNpc') {
+                const result = 从稳定命令登记NPC(socialBuffer, cmd);
+                if (result.applied) {
+                    socialBuffer = deps.规范化社交列表(result.social, { 合并同名: false });
+                }
+                return;
+            }
+            if (cmd?.action === 'updateNpcState') {
+                const result = 从稳定命令更新NPC状态(socialBuffer, cmd);
+                if (result.applied) {
+                    socialBuffer = deps.规范化社交列表(result.social, { 合并同名: false });
+                }
+                return;
+            }
             if (旧式NPC记忆命令带归属信息(cmd)) {
                 const result = 从安全命令写入NPC记忆(socialBuffer, {
                     ...cmd,
@@ -179,6 +256,9 @@ export const 执行响应命令处理 = (
                 if (result.applied) {
                     socialBuffer = deps.规范化社交列表(result.social, { 合并同名: false });
                 }
+                return;
+            }
+            if (isDangerousIndexedSocialWrite(cmd)) {
                 return;
             }
             const result = applyStateCommand(

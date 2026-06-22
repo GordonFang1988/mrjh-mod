@@ -166,7 +166,7 @@ const 提取候选命令文本 = (text: string): string => {
         .filter(line => line.trim().length > 0)
         .filter(line => !/^<[^>]+>$/.test(line.trim()));
 
-    const commandHeaderRegex = /^(?:(?:[-*•])\s*|\d+[.)、]\s*)?(add|set|push|delete|pushNpcMemory|push_npc_memory|npcMemory)\s+([^\s=＝]+)(?:\s*(?:[=＝]\s*|\s+)([\s\S]+))?$/i;
+    const commandHeaderRegex = /^(?:(?:[-*•])\s*|\d+[.)、]\s*)?(add|set|push|delete|pushNpcMemory|push_npc_memory|npcMemory|registerNpc|register_npc|updateNpcState|update_npc_state|登记NPC|更新NPC状态)\s+([^\s=＝]+)(?:\s*(?:[=＝]\s*|\s+)([\s\S]+))?$/i;
     const commands: string[] = [];
 
     const 清理命令尾部分隔符 = (source: string): string => {
@@ -693,7 +693,7 @@ const 清理命令尾部分隔符 = (source: string): string => {
     return text.replace(/[；;，,]\s*$/, '').trimEnd();
 };
 
-const 归一化命令动作 = (rawAction: string): 'add' | 'set' | 'push' | 'delete' | 'sub' | 'pushNpcMemory' | '' => {
+const 归一化命令动作 = (rawAction: string): 'add' | 'set' | 'push' | 'delete' | 'sub' | 'pushNpcMemory' | 'registerNpc' | 'updateNpcState' | '' => {
     const action = (rawAction || '').trim().toLowerCase();
     switch (action) {
         case 'add':
@@ -706,6 +706,14 @@ const 归一化命令动作 = (rawAction: string): 'add' | 'set' | 'push' | 'del
         case 'push_npc_memory':
         case 'npcmemory':
             return 'pushNpcMemory';
+        case 'registernpc':
+        case 'register_npc':
+        case '登记npc':
+            return 'registerNpc';
+        case 'updatenpcstate':
+        case 'update_npc_state':
+        case '更新npc状态':
+            return 'updateNpcState';
         case '增加':
         case '新增':
         case '累加':
@@ -774,7 +782,7 @@ const 解析命令值 = (rawValue: string | undefined): any => {
 };
 
 type 标准命令结构 = {
-    action: 'add' | 'set' | 'push' | 'delete' | 'pushNpcMemory';
+    action: 'add' | 'set' | 'push' | 'delete' | 'pushNpcMemory' | 'registerNpc' | 'updateNpcState';
     key: string;
     value: any;
     npcId?: string;
@@ -783,11 +791,13 @@ type 标准命令结构 = {
 
 const 标准化命令对象列表 = (raw: any): 标准命令结构[] => {
     if (!raw || typeof raw !== 'object') return [];
-    const 合法动作集合 = new Set(['add', 'set', 'push', 'delete', 'sub', 'pushnpcmemory', 'push_npc_memory', 'npcmemory']);
+    const 合法动作集合 = new Set(['add', 'set', 'push', 'delete', 'sub', 'pushnpcmemory', 'push_npc_memory', 'npcmemory', 'registernpc', 'register_npc', '登记npc', 'updatenpcstate', 'update_npc_state', '更新npc状态']);
 
     const 归一化动作 = (actionRaw: string): 标准命令结构['action'] => {
         if (actionRaw === 'sub') return 'add';
         if (actionRaw === 'pushnpcmemory' || actionRaw === 'push_npc_memory' || actionRaw === 'npcmemory') return 'pushNpcMemory';
+        if (actionRaw === 'registernpc' || actionRaw === 'register_npc' || actionRaw === '登记npc') return 'registerNpc';
+        if (actionRaw === 'updatenpcstate' || actionRaw === 'update_npc_state' || actionRaw === '更新npc状态') return 'updateNpcState';
         return actionRaw as 标准命令结构['action'];
     };
 
@@ -800,7 +810,7 @@ const 标准化命令对象列表 = (raw: any): 标准命令结构[] => {
         const npcName = typeof raw.npcName === 'string'
             ? raw.npcName.trim()
             : (typeof raw.NPC姓名 === 'string' ? raw.NPC姓名.trim() : '');
-        if (!key && normalizedAction !== 'pushNpcMemory') return null;
+        if (!key && !['pushNpcMemory', 'registerNpc', 'updateNpcState'].includes(normalizedAction)) return null;
         const normalizedValue = actionRaw === 'sub' && typeof valueRaw === 'number'
             ? -valueRaw
             : (valueRaw === undefined ? null : valueRaw);

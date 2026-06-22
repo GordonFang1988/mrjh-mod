@@ -20,7 +20,7 @@ export * from './models/novelDecomposition';
 // New types for the advanced chat system
 
 export interface TavernCommand {
-    action: 'add' | 'set' | 'push' | 'delete' | 'pushNpcMemory';
+    action: 'add' | 'set' | 'push' | 'delete' | 'pushNpcMemory' | 'registerNpc' | 'updateNpcState';
     key: string;
     value: any;
     npcId?: string;

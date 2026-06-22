@@ -2,6 +2,7 @@ import * as textAIService from '../../services/ai/text';
 import type { GameResponse, OpeningConfig, TavernCommand, 世界书结构, 内置提示词条目结构, 提示词结构 } from '../../types';
 import { 获取变量计算接口配置, 接口配置是否可用, 变量校准功能已启用 } from '../../utils/apiConfig';
 import { 规范化游戏设置 } from '../../utils/gameSettings';
+import { isDangerousIndexedSocialWrite } from '../../utils/npcCommandSafety';
 import { normalizeStateCommandKey } from '../../utils/stateHelpers';
 import { 构建世界书注入文本 } from '../../utils/worldbook';
 import { 构建运行时额外提示词 } from '../../prompts/runtime/nsfw';
@@ -258,7 +259,32 @@ const 包含非法伪索引 = (key: string): boolean => /(?:\[(?:-?\d+|last|tail
     );
 
 const 是否允许变量生成命令 = (cmd: TavernCommand): boolean => {
+    if (cmd?.action === 'registerNpc') {
+        const npcId = typeof cmd.npcId === 'string'
+            ? cmd.npcId.trim()
+            : (typeof cmd.value?.id === 'string' ? cmd.value.id.trim() : '');
+        const npcName = typeof cmd.npcName === 'string'
+            ? cmd.npcName.trim()
+            : (typeof cmd.value?.姓名 === 'string' ? cmd.value.姓名.trim() : '');
+        return npcId.length > 0 && npcName.length > 0;
+    }
+    if (cmd?.action === 'updateNpcState') {
+        const npcId = typeof cmd.npcId === 'string'
+            ? cmd.npcId.trim()
+            : (typeof cmd.value?.npcId === 'string' ? cmd.value.npcId.trim() : '');
+        return npcId.length > 0 && cmd.value && typeof cmd.value === 'object' && !Array.isArray(cmd.value);
+    }
+    if (cmd?.action === 'pushNpcMemory') {
+        const npcId = typeof cmd.npcId === 'string'
+            ? cmd.npcId.trim()
+            : (typeof cmd.value?.npcId === 'string' ? cmd.value.npcId.trim() : '');
+        const content = typeof cmd.value?.内容 === 'string'
+            ? cmd.value.内容.trim()
+            : (typeof cmd.value?.content === 'string' ? cmd.value.content.trim() : '');
+        return npcId.length > 0 && content.length > 0;
+    }
     if (typeof cmd?.key !== 'string' || 包含非法伪索引(cmd.key)) return false;
+    if (isDangerousIndexedSocialWrite(cmd)) return false;
     const normalizedKey = normalizeStateCommandKey(typeof cmd?.key === 'string' ? cmd.key : '');
     if (!normalizedKey) return false;
 

@@ -1,6 +1,7 @@
 import { 角色数据结构, 环境信息结构, 装备槽位 } from '../../types';
 import { normalizeCanonicalGameTime, 结构化时间转标准串 } from './timeUtils';
 import { 压缩图片资源字段 } from '../../utils/imageAssets';
+import { filterValidSocialNpcRecords } from '../../utils/npcCommandSafety';
 
 const 深拷贝 = <T,>(data: T): T => JSON.parse(JSON.stringify(data)) as T;
 const 默认装备模板 = {
@@ -1223,7 +1224,8 @@ const 合并同名NPC列表 = (list: any[]): any[] => {
 
 const 规范化社交列表 = (list: any[], options?: { 合并同名?: boolean }): any[] => {
     if (!Array.isArray(list)) return [];
-    const normalized = list.map((npc, index) => 标准化单个NPC(npc, index));
+    const safeList = filterValidSocialNpcRecords(list);
+    const normalized = safeList.map((npc, index) => 标准化单个NPC(npc, index));
     if (options?.合并同名 === false) return normalized;
     return 合并同名NPC列表(normalized);
 };

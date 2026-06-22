@@ -1,4 +1,5 @@
 import type { GameResponse, TavernCommand } from '../../types';
+import { filterUnsafeNpcCommands } from '../../utils/npcCommandSafety';
 
 export const 合并变量校准结果到响应 = (
     baseResponse: GameResponse,
@@ -8,8 +9,8 @@ export const 合并变量校准结果到响应 = (
         model?: string;
     }
 ): GameResponse => {
-    const baseCommands = Array.isArray(baseResponse?.tavern_commands) ? baseResponse.tavern_commands : [];
-    const supplemental = Array.isArray(calibration?.commands) ? calibration.commands : [];
+    const baseCommands = filterUnsafeNpcCommands(Array.isArray(baseResponse?.tavern_commands) ? baseResponse.tavern_commands : []);
+    const supplemental = filterUnsafeNpcCommands(Array.isArray(calibration?.commands) ? calibration.commands : []);
     const mergedCommands = [...baseCommands, ...supplemental];
 
     return {
