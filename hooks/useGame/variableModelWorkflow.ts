@@ -262,7 +262,9 @@ const 是否允许变量生成命令 = (cmd: TavernCommand): boolean => {
     if (cmd?.action === 'registerNpc') {
         const npcId = typeof cmd.npcId === 'string'
             ? cmd.npcId.trim()
-            : (typeof cmd.value?.id === 'string' ? cmd.value.id.trim() : '');
+            : (typeof cmd.key === 'string' && cmd.key.trim()
+                ? cmd.key.trim()
+                : (typeof cmd.value?.id === 'string' ? cmd.value.id.trim() : ''));
         const npcName = typeof cmd.npcName === 'string'
             ? cmd.npcName.trim()
             : (typeof cmd.value?.姓名 === 'string' ? cmd.value.姓名.trim() : '');
@@ -271,13 +273,17 @@ const 是否允许变量生成命令 = (cmd: TavernCommand): boolean => {
     if (cmd?.action === 'updateNpcState') {
         const npcId = typeof cmd.npcId === 'string'
             ? cmd.npcId.trim()
-            : (typeof cmd.value?.npcId === 'string' ? cmd.value.npcId.trim() : '');
+            : (typeof cmd.key === 'string' && cmd.key.trim()
+                ? cmd.key.trim()
+                : (typeof cmd.value?.npcId === 'string' ? cmd.value.npcId.trim() : ''));
         return npcId.length > 0 && cmd.value && typeof cmd.value === 'object' && !Array.isArray(cmd.value);
     }
     if (cmd?.action === 'pushNpcMemory') {
         const npcId = typeof cmd.npcId === 'string'
             ? cmd.npcId.trim()
-            : (typeof cmd.value?.npcId === 'string' ? cmd.value.npcId.trim() : '');
+            : (typeof cmd.key === 'string' && cmd.key.trim()
+                ? cmd.key.trim()
+                : (typeof cmd.value?.npcId === 'string' ? cmd.value.npcId.trim() : ''));
         const content = typeof cmd.value?.内容 === 'string'
             ? cmd.value.内容.trim()
             : (typeof cmd.value?.content === 'string' ? cmd.value.content.trim() : '');
@@ -292,6 +298,8 @@ const 是否允许变量生成命令 = (cmd: TavernCommand): boolean => {
     if (!allowed) return false;
     return cmd.action === 'add' || cmd.action === 'set' || cmd.action === 'push' || cmd.action === 'delete';
 };
+
+export const __testAllowGeneratedCommand = 是否允许变量生成命令;
 
 export const 执行变量模型校准工作流 = async (
     params: 变量模型校准参数,

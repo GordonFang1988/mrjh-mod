@@ -150,10 +150,26 @@ const 从稳定命令更新NPC状态 = (
     command: TavernCommand
 ): { social: any[]; applied: boolean } => {
     const list = Array.isArray(social) ? social : [];
-    const targetIndex = 查找稳定NPC索引(list, command);
-    if (targetIndex < 0) return { social: list, applied: false };
     const patch = 清理NPC更新对象(command.value);
     if (!patch) return { social: list, applied: false };
+    const targetIndex = 查找稳定NPC索引(list, command);
+    if (targetIndex < 0) {
+        const npcId = 读取命令NPCID(command);
+        const npcName = 读取命令NPC姓名(command);
+        if (!npcId || !npcName) return { social: list, applied: false };
+        return {
+            social: [
+                ...list,
+                {
+                    id: npcId,
+                    姓名: npcName,
+                    记忆: [],
+                    ...patch
+                }
+            ],
+            applied: true
+        };
+    }
     return {
         social: list.map((npc, index) => index === targetIndex ? { ...npc, ...patch } : npc),
         applied: true

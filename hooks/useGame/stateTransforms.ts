@@ -1,5 +1,6 @@
 import { 角色数据结构, 环境信息结构, 装备槽位 } from '../../types';
 import { normalizeCanonicalGameTime, 结构化时间转标准串 } from './timeUtils';
+import { normalizeBodyPartVitals } from '../../utils/characterVitals';
 import { 压缩图片资源字段 } from '../../utils/imageAssets';
 import { filterValidSocialNpcRecords } from '../../utils/npcCommandSafety';
 
@@ -53,15 +54,16 @@ const 规范化角色身体部位字段 = (role: any) => {
         const 当前血量Key = `${part}当前血量`;
         const 最大血量Key = `${part}最大血量`;
         const 状态Key = `${part}状态`;
-        const 当前血量 = Number.isFinite(Number(partObj?.当前血量))
+        const raw当前血量 = Number.isFinite(Number(partObj?.当前血量))
             ? Number(partObj.当前血量)
             : 规范化数值(role?.[当前血量Key], 0);
-        const 最大血量 = Number.isFinite(Number(partObj?.最大血量))
+        const raw最大血量 = Number.isFinite(Number(partObj?.最大血量))
             ? Number(partObj.最大血量)
             : 规范化数值(role?.[最大血量Key], 0);
-        const 状态 = typeof partObj?.状态 === 'string'
+        const raw状态 = typeof partObj?.状态 === 'string'
             ? partObj.状态.trim()
             : 规范化文本(role?.[状态Key]);
+        const { current: 当前血量, max: 最大血量, status: 状态 } = normalizeBodyPartVitals(raw当前血量, raw最大血量, raw状态);
         role[当前血量Key] = 当前血量;
         role[最大血量Key] = 最大血量;
         role[状态Key] = 状态;
