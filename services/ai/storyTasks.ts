@@ -585,11 +585,15 @@ const 解析变量校准响应 = (rawText: string): { commands: TavernCommand[];
         .map((cmd) => ({
             action: cmd.action,
             key: cmd.key,
-            value: cmd.value
+            value: cmd.value,
+            ...(typeof cmd.npcId === 'string' && cmd.npcId.trim() ? { npcId: cmd.npcId.trim() } : {}),
+            ...(typeof cmd.npcName === 'string' && cmd.npcName.trim() ? { npcName: cmd.npcName.trim() } : {})
         })) as TavernCommand[];
 
     return { commands, reports };
 };
+
+export const __testParseVariableCalibrationResponse = 解析变量校准响应;
 
 export const generateWorldEvolutionUpdate = async (
     worldContext: string,

@@ -1118,6 +1118,14 @@ export const 解析命令块 = (commandBlock: string): 标准命令结构[] => {
             .replace(/^\[\d+\]\s*/i, '')
             .replace(/^(?:(?:[\-*•])\s*|\d+[.)、]\s*)/, '')
             .trim();
+        const jsonLine = parseJsonWithRepair<any>(normalized);
+        if (jsonLine.value && typeof jsonLine.value === 'object') {
+            const jsonCommands = 标准化命令对象列表(jsonLine.value);
+            if (jsonCommands.length > 0) {
+                commands.push(...jsonCommands);
+                continue;
+            }
+        }
         const match = normalized.match(/^([^\s=＝:：]+)\s+([^\s=＝:：]+)(?:\s*(?:=|＝|:|：|=>)\s*|\s+)?([\s\S]+)?$/i);
         if (!match) continue;
         const actionRaw = 归一化命令动作(match[1]);

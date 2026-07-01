@@ -1,7 +1,7 @@
 import React from 'react';
 
 const NOTICE_STORAGE_KEY = 'mrjh-mod-notice-dismissed-date';
-const NOTICE_VERSION = '2026-07-01';
+const NOTICE_VERSION = '2026-07-01-2';
 
 const getTodayKey = () => {
     const now = new Date();
@@ -58,6 +58,7 @@ const LandingNoticeModal: React.FC = () => {
                     <section>
                         <h3 className="mb-2 font-serif text-base font-bold tracking-[0.18em] text-wuxia-cyan">修改日志</h3>
                         <ul className="list-disc space-y-2 pl-5">
+                            <li>2026-07-01：修复变量生成链路解析 JSON 稳定 NPC 命令时丢失 npcId/npcName 的问题，确保变量规划转命令后能正确登记 NPC、更新状态并写入记忆。</li>
                             <li>2026-07-01：兼容 Alpha 分支验证过的中文稳定 NPC 命令格式，支持登记NPC、更新NPC状态、添加NPC记忆、记录NPC互动，修复剧情出现人物但社交面板未入档的问题。</li>
                             <li>2026-06-22：完善 NPC 数据安全写入链路，禁止危险的社交数组下标写入，防止记忆张冠李戴与空 NPC 档案。</li>
                             <li>2026-06-22：新增 registerNpc 与 updateNpcState 稳定身份命令，并在变量校准合并、执行器与社交数据规范化层增加兜底防护。</li>
