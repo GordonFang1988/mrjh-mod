@@ -21,7 +21,7 @@ import type {
     世界书结构
 } from '../../types';
 import type { 当前可用接口结构 } from '../../utils/apiConfig';
-import { 获取世界演变接口配置, 获取规划分析接口配置, 获取变量计算接口配置, 接口配置是否可用 } from '../../utils/apiConfig';
+import { 获取世界演变接口配置, 获取规划分析接口配置, 获取规划分析接口配置或主剧情回退, 获取变量计算接口配置, 接口配置是否可用 } from '../../utils/apiConfig';
 import { 核心_开局思维链, 获取开局思维链提示词 } from '../../prompts/core/cotOpening';
 import { 核心_境界体系 } from '../../prompts/core/realm';
 import { 获取开场初始化任务提示词 } from '../../prompts/runtime/opening';
@@ -1066,7 +1066,10 @@ export const 执行开场剧情生成工作流 = async (
             });
         }
 
-        const openingPlanningApi = 获取规划分析接口配置(deps.apiConfig);
+        const openingHeroinePlanningEnabled = openingGameConfig.启用女主剧情规划 === true;
+        const openingPlanningApi = openingHeroinePlanningEnabled
+            ? 获取规划分析接口配置或主剧情回退(deps.apiConfig)
+            : 获取规划分析接口配置(deps.apiConfig);
         if (接口配置是否可用(openingPlanningApi)) {
             const planningStage = await 执行可重试开局阶段({
                 stageLabel: '开局规划分析',
@@ -1212,7 +1215,7 @@ export const 执行开场剧情生成工作流 = async (
         } else {
             deps.设置开局规划进度({
                 phase: 'skipped',
-                text: '规划分析独立链路未启用，已跳过。'
+                text: '规划分析接口未配置，已跳过。'
             });
         }
 

@@ -14,6 +14,7 @@ import { 构建字体注入样式文本, 构建UI文字CSS变量 } from './utils
 import { 获取图片资源文本地址 } from './utils/imageAssets';
 import { MusicProvider } from './components/features/Music/MusicProvider';
 import { 小说拆分后台调度服务 } from './services/novelDecompositionScheduler';
+import { 开局配置启用同人运行时 } from './prompts/runtime/fandom';
 
 type 可预加载组件<T extends React.ComponentType<any>> = React.LazyExoticComponent<T> & {
     preload?: () => Promise<unknown>;
@@ -372,7 +373,7 @@ const App: React.FC = () => {
     }, [state.世界, state.worldEvents]);
 
     const 启用同人模式 = React.useMemo(
-        () => state.开局配置?.同人融合?.enabled === true && state.开局配置?.同人融合?.启用附加小说 === true,
+        () => 开局配置启用同人运行时(state.开局配置),
         [state.开局配置]
     );
     const 启用修炼体系 = state.gameConfig?.启用修炼体系 !== false;

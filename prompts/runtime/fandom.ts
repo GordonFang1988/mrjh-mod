@@ -104,6 +104,8 @@ const 读取同人配置 = (openingConfig?: OpeningConfig | null) => {
     };
 };
 
+export const 开局配置启用同人运行时 = (openingConfig?: OpeningConfig | null): boolean => Boolean(读取同人配置(openingConfig));
+
 const 规范化境界标签 = (value: unknown): string => (
     typeof value === 'string'
         ? value

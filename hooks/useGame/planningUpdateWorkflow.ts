@@ -11,7 +11,7 @@ import type {
     环境信息结构
 } from '../../types';
 import * as textAIService from '../../services/ai/text';
-import { 获取规划分析接口配置, 接口配置是否可用 } from '../../utils/apiConfig';
+import { 获取规划分析接口配置, 获取规划分析接口配置或主剧情回退, 接口配置是否可用 } from '../../utils/apiConfig';
 import { 规范化游戏设置 } from '../../utils/gameSettings';
 import { applyStateCommand } from '../../utils/stateHelpers';
 import { 构建世界书注入文本 } from '../../utils/worldbook';
@@ -175,11 +175,15 @@ export const 创建规划更新工作流 = (deps: 规划更新工作流依赖) =
         gameTime: string;
         response: GameResponse;
     }): Promise<统一规划分析结果> => {
-        const planningApi = 获取规划分析接口配置(deps.apiConfig);
+        const normalizedGameConfig = 规范化游戏设置(deps.gameConfig);
+        const heroineEnabled = normalizedGameConfig.启用女主剧情规划 === true;
+        const planningApi = heroineEnabled
+            ? 获取规划分析接口配置或主剧情回退(deps.apiConfig)
+            : 获取规划分析接口配置(deps.apiConfig);
         if (!接口配置是否可用(planningApi)) {
             return {
                 updated: false,
-                message: '规划分析独立模型未配置，已跳过。',
+                message: '规划分析接口未配置，已跳过。',
                 commands: [],
                 storyCommands: [],
                 storyPlanCommands: [],
@@ -208,8 +212,6 @@ export const 创建规划更新工作流 = (deps: 规划更新工作流依赖) =
             };
         }
 
-        const heroineEnabled = 规范化游戏设置(deps.gameConfig).启用女主剧情规划 === true;
-        const normalizedGameConfig = 规范化游戏设置(deps.gameConfig);
         const 启用修炼体系 = normalizedGameConfig.启用修炼体系 !== false;
         const 独立规划分析GPT模式 = normalizedGameConfig.独立APIGPT模式?.规划分析 === true;
         const worldPrompt = (() => {
