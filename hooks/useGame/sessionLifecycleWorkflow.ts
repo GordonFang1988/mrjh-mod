@@ -380,7 +380,7 @@ export const 创建会话生命周期工作流 = (deps: 会话生命周期依赖
         }
         const openingBase = deps.创建开场基础状态(charData, worldConfig);
         const clearedOpeningBase = deps.构建前端清空开场状态(openingBase);
-        const clearedCommandBase = deps.创建开场命令基态();
+        const clearedCommandBase = deps.创建开场命令基态(openingBase.角色);
         deps.设置开局配置(openingConfig ? deps.深拷贝(openingConfig) : undefined);
         deps.应用开场基态(clearedOpeningBase);
         if (deps.view !== 'game') {

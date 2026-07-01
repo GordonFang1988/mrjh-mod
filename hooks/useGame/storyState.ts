@@ -864,8 +864,8 @@ export const 创建开场基础状态 = (charData: 角色数据结构, _worldCon
     同人女主剧情规划: undefined as 同人女主剧情规划结构 | undefined
 });
 
-export const 创建开场命令基态 = (_roleBase?: 角色数据结构): 开场命令基态 => ({
-    角色: 创建开场空白角色(),
+export const 创建开场命令基态 = (roleBase?: 角色数据结构): 开场命令基态 => ({
+    角色: roleBase ? 深拷贝(roleBase) : 创建开场空白角色(),
     环境: 创建开场空白环境(),
     社交: [],
     世界: 创建开场空白世界(),

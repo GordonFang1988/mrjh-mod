@@ -427,7 +427,7 @@ export const 执行世界生成工作流 = async (
             openingStreaming,
             currentApi,
             {
-                命令基态: deps.创建开场命令基态(),
+                命令基态: deps.创建开场命令基态(openingBase.角色),
                 开局额外要求: normalizedOpeningExtraPrompt,
                 开局配置: openingConfig
             }
