@@ -12,7 +12,7 @@ export const 默认系统字体列表: 字体资源结构[] = [
 export const 默认区域样式: Record<可用视觉区域, Required<Pick<区域文字样式结构, '启用自定义' | '字体ID' | '字体颜色' | '字号' | '行高' | '字形'>>> = {
     聊天: { 启用自定义: false, 字体ID: 'system-serif', 字体颜色: '#f3f4f6', 字号: 16, 行高: 1.6, 字形: 'normal' },
     旁白: { 启用自定义: false, 字体ID: 'system-sans', 字体颜色: '#d1d5db', 字号: 16, 行高: 1.9, 字形: 'normal' },
-    角色对话: { 启用自定义: false, 字体ID: 'system-sans', 字体颜色: '#111827', 字号: 16, 行高: 1.7, 字形: 'normal' },
+    角色对话: { 启用自定义: false, 字体ID: 'system-sans', 字体颜色: '#dedbd2', 字号: 16, 行高: 1.7, 字形: 'normal' },
     判定: { 启用自定义: false, 字体ID: 'system-serif', 字体颜色: '#f5e7a1', 字号: 15, 行高: 1.5, 字形: 'normal' },
     顶部栏: { 启用自定义: false, 字体ID: 'system-serif', 字体颜色: '#e6c86e', 字号: 14, 行高: 1.3, 字形: 'normal' },
     左侧栏: { 启用自定义: false, 字体ID: 'system-serif', 字体颜色: '#f3f4f6', 字号: 13, 行高: 1.45, 字形: 'normal' },
@@ -34,7 +34,7 @@ export const 默认UI文字样式: Record<可用UI文字令牌, Required<Pick<UI
 const 主题联动区域颜色: Record<可用视觉区域, string> = {
     聊天: 'rgb(var(--c-paper-white))',
     旁白: 'rgb(var(--c-paper-white))',
-    角色对话: 'rgb(var(--c-ink-black))',
+    角色对话: '#dedbd2',
     判定: 'rgb(var(--c-wuxia-gold))',
     顶部栏: 'rgb(var(--c-wuxia-gold))',
     左侧栏: 'rgb(var(--c-paper-white))',
