@@ -31,11 +31,12 @@ assert.deepEqual(scene.profile,profile); // Never correct the LLM classification
 const inspection = inspectAvgSceneCandidates(profile,assets as any);
 assert.equal(inspection.selection.functionTier,'exact');
 assert.equal(inspection.selection.spaceTier,'compatible');
-assert.deepEqual(new Set(inspection.candidateIds),new Set(['restaurant','palatial']));
+assert.equal(inspection.counts.afterFunctionPreference,2);
+assert.deepEqual(inspection.candidateIds,['restaurant']);
 assert.equal(inspection.failure,null);
 
 assert.equal(resolve(profile,[assets[0]]).assetId,'tea'); // Related public dining function, only as fallback.
-assert.equal(inspectAvgSceneCandidates(profile,[assets[0]] as any).selection.functionTier,'related-dining');
+assert.equal(inspectAvgSceneCandidates(profile,[assets[0]] as any).selection.functionTier,'related-function');
 assert.equal(resolve({...profile,场所功能:'茶馆'}).assetId,'tea');
 assert.equal(resolve({...profile,空间:'酒楼大厅',场所功能:'客栈'},[assets[3]]).assetId,'inn');
 assert.equal(resolve({...profile,空间:'客栈大堂'},[assets[1]]).assetId,'restaurant');

@@ -64,9 +64,12 @@ const inspectScenePayload = (value: unknown) => {
 
 export const buildAvgSceneSourceEvidence = (turn?: 聊天记录结构) => {
     const raw = typeof turn?.rawJson === 'string' ? turn.rawJson : '';
+    const jsonRoot = /^\s*(?:```(?:json)?\s*)?(?:\{|\[)/i.test(raw)
+        ? parseJsonWithRepair<Record<string, unknown>>(raw).value : undefined;
+    const jsonResponse = jsonRoot && Array.isArray(jsonRoot.logs) ? jsonRoot : undefined;
     // Thought sections can mention output examples; inspect the actual reply outside them.
     const visibleRaw = raw.replace(/<\s*(thinking|think)(?=\s|>)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
-    const blocks = [...visibleRaw.matchAll(/<\s*演出场景(?=\s|>)[^>]*>([\s\S]*?)(?:<\s*\/\s*演出场景\s*>|$)/gi)];
+    const blocks = jsonResponse ? [] : [...visibleRaw.matchAll(/<\s*演出场景(?=\s|>)[^>]*>([\s\S]*?)(?:<\s*\/\s*演出场景\s*>|$)/gi)];
     const rawBlocks = blocks.slice(0, 4).map(match => {
         const json = parseJsonWithRepair<unknown>(match[1]);
         return { closed: /<\s*\/\s*演出场景\s*>\s*$/i.test(match[0]), length: match[1].length,
@@ -77,7 +80,7 @@ export const buildAvgSceneSourceEvidence = (turn?: 聊天记录结构) => {
     let jsonPayload: ReturnType<typeof inspectScenePayload> | undefined;
     let jsonPayloadUnreadable = false;
     if (!blocks.length && raw.trim()) {
-        const json = parseJsonWithRepair<Record<string, unknown>>(raw).value;
+        const json = jsonResponse || parseJsonWithRepair<Record<string, unknown>>(raw).value;
         if (json && Object.prototype.hasOwnProperty.call(json, 'avgSceneHints')) jsonPayload = inspectScenePayload(json.avgSceneHints);
         jsonPayloadUnreadable = json === null && /["']avgSceneHints["']\s*:/.test(visibleRaw);
     }
@@ -94,8 +97,8 @@ export const buildAvgSceneSourceEvidence = (turn?: 聊天记录结构) => {
         }
     }
     return {
-        rawAvailable: !!raw.trim(), rawLength: raw.length, rawSceneBlockCount: blocks.length, rawBlocks,
-        rawSceneMarkerCount: [...visibleRaw.matchAll(/<\s*镜头\s+[^>]*ref\s*=/gi)].length,
+        rawAvailable: !!raw.trim(), rawLength: raw.length, wireFormat: jsonResponse ? 'json' : 'tagged-or-text', rawSceneBlockCount: blocks.length, rawBlocks,
+        rawSceneMarkerCount: jsonResponse ? 0 : [...visibleRaw.matchAll(/<\s*镜头\s+[^>]*ref\s*=/gi)].length,
         jsonPayload, jsonPayloadUnreadable, reparseOptions, reparseError, reparsed, reparsedWithoutTagRepair,
         // Historic requests cannot be reconstructed from current settings.
         request: turn?.avgSceneTrace?.request || null,

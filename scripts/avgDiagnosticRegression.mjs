@@ -36,17 +36,19 @@ assert.match(diagnoseAvgSceneSource(source(raw,missing,trace)).summary,/正文�
 const afterPolish = {...trace, afterPolish:snapshotAvgSceneFields(parsed),afterVariableGeneration:snapshotAvgSceneFields(missing)};
 assert.match(diagnoseAvgSceneSource(source(raw,missing,afterPolish)).summary,/变量合并/);
 const arrayRaw = body+'<演出场景>'+JSON.stringify([hint])+'</演出场景>';
-assert.equal(code(arrayRaw),'scene-parser-dropped-fields');
+assert.equal(code(arrayRaw),'scene-fields-not-retained');
+assert.equal(code(arrayRaw,parseStoryRawText(arrayRaw)),'scene-fields-present');
 assert.equal(source(arrayRaw).rawBlocks[0].structure.readableSceneCount,1);
 assert.equal(code(body+'<演出场景>not-json</演出场景>'),'scene-json-unreadable');
 assert.equal(code(body+'<演出场景>{"场景":[{"ref":"s1","分类":{"地域":"华北"}}]}</演出场景>'),'scene-fields-incomplete');
 assert.equal(code(body+'<演出场景>'+JSON.stringify({场景:[hint,hint]})+'</演出场景>'),'scene-refs-duplicated');
 assert.equal(code('<thinking>'+raw+'</thinking>'+body),'response-scene-fields-absent');
 const jsonRaw = JSON.stringify({logs:[{sender:'旁白',text:'测试',avgSceneRef:'s1'}],avgSceneHints:{场景:[hint]}});
-// Current tag repair intercepts this JSON response; diagnostics must expose that loss, without changing parsing here.
-assert.equal(code(jsonRaw),'scene-parser-dropped-fields');
+// JSON replies retain AVG fields before tag repair; old missing snapshots are diagnosed as not retained.
+assert.equal(code(jsonRaw),'scene-fields-not-retained');
+assert.equal(code(jsonRaw,parseStoryRawText(jsonRaw)),'scene-fields-present');
 assert.equal(parseStoryRawText(jsonRaw,{enableTagRepair:false}).avgSceneHints.length,1);
-assert.equal(source(jsonRaw).reparsedWithoutTagRepair.hintCount,1);
+assert.equal(source(jsonRaw).reparsed.hintCount,1);
 assert.equal(source(jsonRaw).jsonPayload.sceneCount,1);
 const unsupportedRaw = raw.replace('厢房','模型未收录空间');
 const unsupported = parseStoryRawText(unsupportedRaw);

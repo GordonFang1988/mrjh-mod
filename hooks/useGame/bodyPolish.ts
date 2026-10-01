@@ -15,6 +15,7 @@ import { 核心_文章优化思维链 } from '../../prompts/core/cotPolish';
 import { 构建COT伪装提示词 } from './promptRuntime';
 import { 环境时间转标准串 } from './timeUtils';
 import { 规范化环境信息, 构建完整地点文本 } from './stateTransforms';
+import { readAvgSceneMarker, writeAvgSceneMarker, avgSceneBodyLines, avgSceneSegmentRefs } from '../../services/avg/sceneProtocol';
 
 type 正文日志结构 = Array<{ sender: string; text: string; avgSceneRef?: string }>;
 
@@ -70,7 +71,7 @@ const 规范化正文发送者 = (senderRaw: string): string => {
 const 解析正文日志文本 = (bodyText: string): 正文日志结构 => {
     const source = (bodyText || '').trim();
     if (!source) return [];
-    const lines = source.replace(/\r\n/g, '\n').split('\n');
+    const lines = avgSceneBodyLines(source);
     const logs: 正文日志结构 = [];
     let current: { sender: string; text: string; avgSceneRef?: string } | null = null;
     let sceneRef: string | undefined;
@@ -78,9 +79,9 @@ const 解析正文日志文本 = (bodyText: string): 正文日志结构 => {
     for (const rawLine of lines) {
         const line = rawLine.trim();
         if (!line) continue;
-        const marker = line.match(/^<\s*镜头\s+ref\s*=\s*["'](s[1-9][0-9]?)["']\s*\/\s*>$/);
-        if (marker) { sceneRef = marker[1]; current = null; continue; }
-        if (/^<\s*\/?\s*镜头\b/.test(line)) { sceneRef = undefined; current = null; continue; }
+        const marker = readAvgSceneMarker(line);
+        if (marker) { sceneRef = marker; current = null; continue; }
+        if (/^<\s*\/?\s*镜头(?=\s|\/|>)/.test(line)) { sceneRef = undefined; current = null; continue; }
         const match = line.match(/^【\s*([^】]+?)\s*】\s*(.*)$/);
         if (match) {
             const sender = 规范化正文发送者(match[1]);
@@ -107,7 +108,7 @@ const 构建正文文本 = (logs: 正文日志结构): string => {
         .map(item => {
             const sender = (item.sender || '').trim();
             const senderToken = sender.startsWith('【') ? sender : `【${sender || '旁白'}】`;
-            const marker = item.avgSceneRef && item.avgSceneRef !== previousRef ? `<镜头 ref="${item.avgSceneRef}"/>\n` : '';
+            const marker = item.avgSceneRef !== previousRef ? `${writeAvgSceneMarker(item.avgSceneRef)}\n` : '';
             previousRef = item.avgSceneRef;
             return `${marker}${senderToken}${item.text}`;
         })
@@ -276,7 +277,7 @@ export const 执行正文润色 = async (
         polishOutputContract,
         核心_文章优化思维链.内容,
         (baseResponse.logs || []).some(log => !!log.avgSceneRef)
-            ? '【AVG镜头边界】输入中每个<镜头 ref="sN"/>必须原样保留；顺序、次数和所属段落不得改变。可以改写镜头内部的旁白和台词，不得增删或挪动镜头边界。'
+            ? '【AVG镜头边界】输入中每个<镜头 ref="..."/>必须原样保留；中性段落的<镜头/>也必须保留。顺序、次数和所属段落不得改变。可以改写镜头内部的旁白和台词，不得增删或挪动镜头边界。'
             : ''
     ]
         .filter((item) => typeof item === 'string' && item.trim().length > 0)
@@ -308,12 +309,8 @@ export const 执行正文润色 = async (
         sourceLogs,
         解析正文日志文本(polishedResult.bodyText)
     );
-    const segmentSequence = (logs: 正文日志结构): string[] => logs.reduce<string[]>((refs, log) => {
-        if (log.avgSceneRef && log.avgSceneRef !== refs[refs.length - 1]) refs.push(log.avgSceneRef);
-        return refs;
-    }, []);
-    const sourceSegments = segmentSequence(sourceLogs);
-    if (sourceSegments.length > 0 && JSON.stringify(segmentSequence(polishedLogs)) !== JSON.stringify(sourceSegments)) {
+    const sourceSegments = avgSceneSegmentRefs(sourceLogs);
+    if (sourceLogs.some(log => !!log.avgSceneRef) && JSON.stringify(avgSceneSegmentRefs(polishedLogs)) !== JSON.stringify(sourceSegments)) {
         return { response: baseResponse, applied: false, error: '润色改变了场景边界，已保留原文演出。', rawText: polishedResult.rawText };
     }
     if (polishedLogs.length === 0) {

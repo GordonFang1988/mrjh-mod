@@ -1,6 +1,7 @@
 import { GameResponse } from '../../types';
 import { parseJsonWithRepair } from '../../utils/jsonRepair';
 import { normalizeAvgHints } from '../avg/vocabulary';
+import { readAvgSceneMarker, avgSceneBodyLines } from '../avg/sceneProtocol';
 
 export interface StoryParseOptions {
     validateTagCompleteness?: boolean;
@@ -318,7 +319,7 @@ const 提取候选正文文本 = (text: string): string => {
         .split('\n')
         .map(line => line.trim())
         .filter(Boolean)
-        .filter(line => !/^<[^>]+>$/.test(line) || /^<\s*镜头\s+ref\s*=/.test(line))
+        .filter(line => !/^<[^>]+>$/.test(line) || /^<\s*镜头(?=\s|\/|>)/.test(line))
         .filter(line => !Object.values(协议标题匹配规则).some(rule => rule.test(line)));
     return lines.join('\n').trim();
 };
@@ -620,21 +621,21 @@ const 提取正文中的Judge区块 = (body: string): { cleanBody: string; judge
 
 const 解析正文日志 = (body: string): Array<{ sender: string; text: string }> => {
     if (!body || !body.trim()) return [];
-    const lines = body.replace(/\r\n/g, '\n').split('\n');
+    const lines = avgSceneBodyLines(body);
     const logs: Array<{ sender: string; text: string; avgSceneRef?: string }> = [];
     let current: { sender: string; text: string; avgSceneRef?: string } | null = null;
     let sceneRef: string | undefined;
 
     for (const rawLine of lines) {
         const line = rawLine.trim();
-        const marker = line.match(/^<\s*镜头\s+ref\s*=\s*["'](s[1-9][0-9]?)["']\s*\/\s*>$/);
+        const marker = readAvgSceneMarker(line);
         if (marker) {
-            sceneRef = marker[1];
+            sceneRef = marker;
             current = null;
             continue;
         }
         // A malformed marker is still metadata, never dialogue or a game instruction.
-        if (/^<\s*\/?\s*镜头\b/.test(line)) {
+        if (/^<\s*\/?\s*镜头(?=\s|\/|>)/.test(line)) {
             sceneRef = undefined;
             current = null;
             continue;
@@ -1241,7 +1242,7 @@ const 解析标签协议响应 = (content: string): GameResponse | null => {
             /<\s*(thinking|剧情规划|变量规划|短期记忆|命令|行动选项|动态世界|演出场景)(?=\s|>)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '\n'
         );
         const stripped = 提取正文中的Judge区块(narrativeFallback).cleanBody
-            .replace(/<(?!\s*镜头\s+ref\s*=)[^>]+>/g, '\n');
+            .replace(/<(?!\s*镜头(?=\s|\/|>))[^>]+>/g, '\n');
         if (/【[^】]+】/.test(stripped)) {
             logs = 解析正文日志(stripped);
         }
@@ -1302,7 +1303,7 @@ const 归一化JSON结构响应 = (raw: any): GameResponse => {
                     return {
                         sender: typeof item.sender === 'string' ? item.sender : '旁白',
                         text: typeof item.text === 'string' ? item.text : String(item.text ?? ''),
-                        avgSceneRef: typeof item.avgSceneRef === 'string' ? item.avgSceneRef : undefined
+                        avgSceneRef: typeof item.avgSceneRef === 'string' ? item.avgSceneRef.trim() || undefined : undefined
                     };
                 }
                 return null;
@@ -1392,6 +1393,15 @@ const 归一化JSON结构响应 = (raw: any): GameResponse => {
 export const parseStoryRawText = (content: string, options?: StoryParseOptions): GameResponse => {
     const parseOptions = 规范化解析选项(options || 默认解析选项);
     const rawText = typeof content === 'string' ? content : '';
+    // Preserve the existing JSON response route before tag repair can wrap JSON
+    // as narration. Strict tag validation keeps its original contract.
+    if (!parseOptions.validateTagCompleteness && /^\s*(?:```(?:json)?\s*)?(?:\{|\[)/i.test(rawText)) {
+        const directJson = parseJsonWithRepair<any>(rawText).value;
+        if (directJson && Array.isArray(directJson.logs)) {
+            const response = 归一化JSON结构响应(directJson);
+            if (response.logs.length) return response;
+        }
+    }
     const normalizedText = parseOptions.enableTagRepair
         ? 修复思考区后半段标签协议文本(rawText)
         : rawText;

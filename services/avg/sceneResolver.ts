@@ -7,6 +7,7 @@ import { AVG_PRESET_PACK } from './manifest';
 import { getAvgPackCatalog } from './packStore';
 import { readAvgSceneProfile } from './vocabulary';
 import { indexAvgSceneBindings, lookupAvgSceneBinding } from './sceneBindings';
+import { avgCompatibleSpaces, avgRelatedSceneFunctions, avgRelatedSceneFunctionDistance, avgUnspecifiedField } from './sceneCompatibility';
 
 /** Existing project art is an engineering fixture until an art pack is approved. */
 export const ENGINEERING_AVG_SCENES: AvgSceneAsset[] = [
@@ -32,21 +33,7 @@ export const sceneAssetsFromArchive = (archive?: 场景图片档案, theme?: str
     ];
 };
 
-const compatible: Record<string, string[]> = {
-    山道: ['山腰', '后山小径'], 后山小径: ['山道', '林间小径'], 练剑坪: ['露天练武场'],
-    门派广场: ['门派前庭', '露天练武场'], 门派前庭: ['门派广场'],
-    藏经阁: ['藏书阁'], 藏书阁: ['藏经阁'],
-    客栈大堂: ['酒楼大厅', '茶馆'], 酒楼大厅: ['茶馆', '客栈大堂'], 茶馆: ['酒楼大厅', '客栈大堂'],
-    洞内: ['静修洞穴'], 静修洞穴: ['洞内'], 山腰: ['山道', '山脚'],
-    树林: ['林间空地'], 林间空地: ['树林']
-};
-
-// These art categories all depict public dining/seating rooms. This is resource
-// compatibility, not a replacement for the model's independent space/function fields.
-const diningSpaces = new Set(['茶馆', '酒楼大厅', '客栈大堂']);
-const diningFunctions = new Set(['茶馆', '酒楼', '客栈']);
-
-const weights: Array<[keyof AvgSceneProfile, number]> = [
+const weights: Array<[Exclude<keyof AvgSceneProfile, '显著要素'>, number]> = [
     ['地域', 10], ['地理环境', 12], ['植被', 16], ['地表', 9], ['水域', 15],
     ['视点', 11], ['场所体系', 18], ['场所功能', 26],
     ['装潢档次', 14], ['完好程度', 12], ['空间规模', 8]
@@ -72,7 +59,7 @@ const score = (wanted: AvgSceneProfile, available: AvgSceneProfile): number => {
     for (const [field, points] of weights) {
         const a = wanted[field];
         const b = available[field];
-        if (typeof a !== 'string' || !a || a === '不适用' || typeof b !== 'string' || !b || b === '通用' || b === '不适用') continue;
+        if (avgUnspecifiedField(a) || avgUnspecifiedField(b)) continue;
         total += a === b ? points : -Math.ceil(points / 3);
     }
     const features = new Set(available.显著要素 || []);
@@ -82,30 +69,38 @@ const score = (wanted: AvgSceneProfile, available: AvgSceneProfile): number => {
 
 /** Matching and diagnostics share the same filters; no prose/location classification occurs here. */
 const sceneCandidatePool = (profile: AvgSceneProfile, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string) => {
-    const compatibleInstitution = (asset: AvgSceneAsset) => !profile.场所体系 || !asset.profile.场所体系
-        || asset.profile.场所体系 === '通用' || profile.场所体系 === asset.profile.场所体系;
-    const directFunction = (asset: AvgSceneAsset) => !profile.场所功能 || !asset.profile.场所功能
-        || asset.profile.场所功能 === '通用' || profile.场所功能 === '通用'
+    const compatibleInstitution = (asset: AvgSceneAsset) => avgUnspecifiedField(profile.场所体系) || avgUnspecifiedField(asset.profile.场所体系)
+        || profile.场所体系 === asset.profile.场所体系;
+    const directFunction = (asset: AvgSceneAsset) => avgUnspecifiedField(profile.场所功能) || avgUnspecifiedField(asset.profile.场所功能)
         || profile.场所功能 === asset.profile.场所功能;
-    const relatedFunction = (asset: AvgSceneAsset) => diningSpaces.has(profile.空间) && diningSpaces.has(asset.profile.空间)
-        && diningFunctions.has(profile.场所功能 || '') && diningFunctions.has(asset.profile.场所功能 || '');
+    const relatedFunction = (asset: AvgSceneAsset) => avgRelatedSceneFunctions(profile.空间, profile.场所功能, asset.profile.空间, asset.profile.场所功能);
+    const alternatives = avgCompatibleSpaces(profile.空间);
     const matchesSpace = (asset: AvgSceneAsset) => asset.profile.空间 === profile.空间
-        || (compatible[profile.空间] || []).includes(asset.profile.空间);
+        || alternatives.includes(asset.profile.空间);
     const known = assets.filter(asset => asset.profile.空间 !== '未知');
     const institution = known.filter(compatibleInstitution);
     const available = institution.filter(asset => directFunction(asset) || relatedFunction(asset));
     const exact = available.filter(asset => asset.profile.空间 === profile.空间);
     const categoryPool = available.filter(matchesSpace);
-    const exactFunction = profile.场所功能 && profile.场所功能 !== '通用'
+    const exactFunction = !avgUnspecifiedField(profile.场所功能)
         ? categoryPool.filter(asset => asset.profile.场所功能 === profile.场所功能) : [];
     const direct = categoryPool.filter(directFunction);
+    const related = categoryPool.map(asset => ({ asset,
+        distance: avgRelatedSceneFunctionDistance(profile.空间, profile.场所功能, asset.profile.空间, asset.profile.场所功能) }));
+    const closestDistance = related.length ? Math.min(...related.map(item => item.distance)) : Infinity;
+    const closest = related.filter(item => Number.isFinite(item.distance) && item.distance === closestDistance).map(item => item.asset);
     // Search related spaces before relaxing the function. An unrelated exact-space
     // asset must not hide a restaurant image just because its space label differs.
-    const functionPool = exactFunction.length > 0 ? exactFunction : direct.length > 0 ? direct : categoryPool;
+    const functionPool = exactFunction.length > 0 ? exactFunction : direct.length > 0 ? direct : closest;
     const sameSpace = functionPool.filter(asset => asset.profile.空间 === profile.空间);
     const spacePool = sameSpace.length > 0 ? sameSpace : functionPool;
-    const themed = normalizeAvgTheme(theme) ? spacePool.filter(asset => asset.themeId === normalizeAvgTheme(theme)) : [];
-    const themePool = themed.length ? themed : spacePool;
+    // Theme/style are preferences within the best metadata match, never reasons
+    // to discard a better region, condition or scale supplied by the model.
+    const ranked = spacePool.map(asset => ({ asset, points: score(profile, asset.profile) }));
+    const top = ranked.length ? Math.max(...ranked.map(item => item.points)) : 0;
+    const bestPool = ranked.filter(item => item.points === top).map(item => item.asset);
+    const themed = normalizeAvgTheme(theme) ? bestPool.filter(asset => asset.themeId === normalizeAvgTheme(theme)) : [];
+    const themePool = themed.length ? themed : bestPool;
     const sameStyle = preferredStyle ? themePool.filter(asset => asset.styleFamily === preferredStyle) : [];
     const pool = sameStyle.length > 0 ? sameStyle : themePool;
     const spacesBefore = known.filter(matchesSpace);
@@ -113,8 +108,8 @@ const sceneCandidatePool = (profile: AvgSceneProfile, assets: AvgSceneAsset[], p
     const failureStage = !spacesBefore.length ? 'space' : !spacesAfterInstitution.length ? 'institution'
         : !categoryPool.length ? 'function' : undefined;
     return { pool, failureStage, spacesBefore, spacesAfterInstitution,
-        selection: { allowedSpaces: [profile.空间, ...(compatible[profile.空间] || [])],
-            functionTier: !functionPool.length ? 'none' : exactFunction.length ? 'exact' : direct.length ? 'direct-or-general' : 'related-dining',
+        selection: { allowedSpaces: [profile.空间, ...alternatives],
+            functionTier: !functionPool.length ? 'none' : exactFunction.length ? 'exact' : direct.length ? 'direct-or-general' : 'related-function',
             spaceTier: !spacePool.length ? 'none' : sameSpace.length ? 'exact' : 'compatible' },
         counts: { total: assets.length, knownSpace: known.length,
         exactSpaceBeforeFilters: known.filter(asset => asset.profile.空间 === profile.空间).length,
@@ -124,6 +119,7 @@ const sceneCandidatePool = (profile: AvgSceneProfile, assets: AvgSceneAsset[], p
         afterInstitution: institution.length, afterFunction: available.length,
         exactSpace: exact.length, category: categoryPool.length, afterFunctionPreference: functionPool.length,
         afterSpacePreference: spacePool.length,
+        afterProfilePreference: bestPool.length,
         afterThemePreference: themePool.length, afterStylePreference: pool.length } };
 };
 
@@ -131,6 +127,8 @@ export const inspectAvgSceneCandidates = (profile: AvgSceneProfile, assets: AvgS
     const { pool, counts, selection, failureStage, spacesBefore, spacesAfterInstitution } = sceneCandidatePool(profile, assets, undefined, theme);
     const rejected = failureStage === 'institution' ? spacesBefore : failureStage === 'function' ? spacesAfterInstitution : [];
     return { counts, selection, candidateIds: pool.slice(0, 12).map(asset => asset.id), candidatesTruncated: pool.length > 12,
+        candidates: pool.slice(0, 12).map(asset => ({ id: asset.id, profile: asset.profile,
+            profileScore: score(profile, asset.profile), themeId: asset.themeId, styleFamily: asset.styleFamily })),
         failure: failureStage ? { stage: failureStage, requested: profile,
             rejectedCandidates: rejected.slice(0, 12).map(asset => ({ id: asset.id, profile: asset.profile })),
             rejectedCandidatesTruncated: rejected.length > 12 } : null };
@@ -139,10 +137,8 @@ export const inspectAvgSceneCandidates = (profile: AvgSceneProfile, assets: AvgS
 const resolveAsset = (profile: AvgSceneProfile, placeKey: string, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string): AvgSceneAsset | undefined => {
     const { pool } = sceneCandidatePool(profile, assets, preferredStyle, theme);
     if (pool.length === 0) return undefined;
-    const ranked = pool.map(asset => ({ asset, points: score(profile, asset.profile) }));
-    const top = Math.max(...ranked.map(item => item.points));
-    const ties = ranked.filter(item => item.points === top).sort((a, b) => a.asset.id.localeCompare(b.asset.id));
-    return ties[hash(placeKey) % ties.length]?.asset;
+    const ties = [...pool].sort((a, b) => a.id.localeCompare(b.id));
+    return ties[hash(placeKey) % ties.length];
 };
 
 /** Diagnostic inspection uses exactly the same identity lookup as playback. */
@@ -196,7 +192,9 @@ export const buildAvgPresentation = (
     let identityConflict = false;
     chosen.forEach((hint, index) => {
         const location = hint.地点;
-        const declaredKey = avgPlaceKey(location);
+        // A county/building without a concrete room is a display location, not a
+        // stable room identity. An explicit scene ID can still bind this scene.
+        const declaredKey = location?.具体地点?.trim() ? avgPlaceKey(location) : '';
         const lookup = lookupAvgSceneBinding(prior, declaredKey, hint.场景ID);
         identityConflict ||= lookup.conflict;
         const placeKey = declaredKey || lookup.binding?.placeKey || `transient:${hash(JSON.stringify(hint.分类 || {}))}:${index}`;
@@ -227,7 +225,7 @@ export const buildAvgPresentation = (
         // Later refs in this same reply can return to the first selected binding too.
         if (!lookup.conflict && scene.sceneId && (scene.assetId || scene.reason === 'manual-neutral')) {
             prior.byId.set(scene.sceneId, scene);
-            for (const key of scene.placeAliases || []) prior.byPlace.set(key, scene);
+            for (const key of scene.placeAliases || []) if (key.split('/')[3]?.trim()) prior.byPlace.set(key, scene);
         }
     });
     return {

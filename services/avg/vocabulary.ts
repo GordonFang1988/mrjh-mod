@@ -91,18 +91,19 @@ export const readAvgSceneProfile = (raw: unknown): AvgSceneProfile | null => {
 export const normalizeAvgHints = (raw: unknown): AvgSceneHint[] => {
     if (!raw || typeof raw !== 'object') return [];
     const item = raw as Record<string, unknown>;
-    if (!Array.isArray(item.场景)) return [];
+    const entries = Array.isArray(raw) ? raw : Array.isArray(item.场景) ? item.场景 : undefined;
+    if (!entries) return [];
     const refCounts = new Map<string, number>();
     const result: AvgSceneHint[] = [];
-    for (const entry of item.场景.slice(0, 12)) {
+    for (const entry of entries) {
         if (!entry || typeof entry !== 'object') continue;
         const scene = entry as Record<string, unknown>;
         const ref = typeof scene.ref === 'string' ? scene.ref.trim() : '';
         if (ref) refCounts.set(ref, (refCounts.get(ref) || 0) + 1);
         const profile = readAvgSceneProfile(scene.分类);
-        const sceneId = typeof scene.场景ID === 'string' ? scene.场景ID.trim().slice(0, 500) : undefined;
+        const sceneId = typeof scene.场景ID === 'string' ? scene.场景ID.trim() : undefined;
         const location = scene.地点 && typeof scene.地点 === 'object'
-            ? Object.fromEntries(Object.entries(scene.地点).filter(([, value]) => typeof value === 'string' && value.trim()).map(([key, value]) => [key, String(value).trim().slice(0, 100)]))
+            ? Object.fromEntries(Object.entries(scene.地点).filter(([, value]) => typeof value === 'string' && value.trim()).map(([key, value]) => [key, String(value).trim()]))
             : undefined;
         // An exact identity/location can refer to a previously classified scene.
         // New locations without classification remain neutral in the resolver.
