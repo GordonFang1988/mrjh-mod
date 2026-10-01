@@ -66,6 +66,11 @@ export const 规范化场景图片档案 = (raw?: any): 场景图片档案 => {
     if (最近生图结果) normalized.最近生图结果 = 最近生图结果;
     if (normalizedHistory.length > 0) normalized.生图历史 = normalizedHistory;
     if (normalizedCurrentWallpaperImageId) normalized.当前壁纸图片ID = normalizedCurrentWallpaperImageId;
+    if (source.AVG地点绑定 && typeof source.AVG地点绑定 === 'object' && !Array.isArray(source.AVG地点绑定)) {
+        normalized.AVG地点绑定 = Object.fromEntries(Object.entries(source.AVG地点绑定)
+            .filter(([key, value]) => key.trim() && typeof value === 'string' && value.trim())
+            .map(([key, value]) => [key, String(value).trim()]));
+    }
     return normalized;
 };
 
@@ -187,7 +192,9 @@ export const 创建场景图片档案工作流 = (deps: 场景图片档案工作
         const nextArchive = 规范化场景图片档案({
             最近生图结果: nextHistory[0],
             生图历史: nextHistory,
-            当前壁纸图片ID: currentArchive?.当前壁纸图片ID === imageId ? undefined : currentArchive?.当前壁纸图片ID
+            当前壁纸图片ID: currentArchive?.当前壁纸图片ID === imageId ? undefined : currentArchive?.当前壁纸图片ID,
+            AVG地点绑定: Object.fromEntries(Object.entries(currentArchive?.AVG地点绑定 || {})
+                .filter(([, assetId]) => assetId !== `archive:${imageId}`))
         });
         deps.同步场景图片档案(nextArchive);
         await deps.保存场景图片档案设置(nextArchive);
@@ -206,7 +213,9 @@ export const 创建场景图片档案工作流 = (deps: 场景图片档案工作
         const nextArchive: 场景图片档案 = 规范化场景图片档案({
             最近生图结果: currentArchive?.最近生图结果,
             生图历史: [],
-            当前壁纸图片ID: currentArchive?.当前壁纸图片ID
+            当前壁纸图片ID: currentArchive?.当前壁纸图片ID,
+            AVG地点绑定: Object.fromEntries(Object.entries(currentArchive?.AVG地点绑定 || {})
+                .filter(([, assetId]) => !assetId.startsWith('archive:')))
         });
         deps.同步场景图片档案(nextArchive);
         await deps.保存场景图片档案设置(nextArchive);

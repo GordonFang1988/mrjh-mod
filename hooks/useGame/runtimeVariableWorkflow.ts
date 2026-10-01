@@ -252,6 +252,7 @@ export const 创建运行时变量工作流 = (deps: 运行时变量工作流依
     };
 
     const applyRuntimeVariableCommand = async (command: TavernCommand) => {
+        if (command.action !== 'set' && command.action !== 'add' && command.action !== 'push' && command.action !== 'delete') return;
         const 当前状态 = deps.获取当前状态();
         const 历史记录 = deps.获取历史记录();
         const normalizedKey = normalizeStateCommandKey(command?.key || '');

@@ -16,6 +16,9 @@ import type { 自动存档快照结构 } from './saveCoordinator';
 import type { 世界演变触发参数, 世界演变执行结果 } from './worldEvolutionWorkflow';
 import { 获取激活小说拆分注入文本 } from '../../services/novelDecompositionInjection';
 import { 同步剧情小说分解时间校准 } from '../../services/novelDecompositionCalibration';
+import { buildAvgPresentation, sceneAssetsFromArchive } from '../../services/avg/sceneResolver';
+import { resolveAvgPortraits } from '../../services/avg/portraitResolver';
+import { loadAvgPackCatalog } from '../../services/avg/packStore';
 
 type 回忆检索进度 = {
     phase: 'start' | 'stream' | 'done' | 'error';
@@ -974,6 +977,19 @@ export const 执行主剧情发送工作流 = async (
             deps.设置剧情(finalState.剧情);
         }
         const nextGameTime = 环境时间转标准串(finalState.环境) || '未知时间';
+        await loadAvgPackCatalog().catch(() => undefined);
+        finalDisplayResponse = {
+            ...finalDisplayResponse,
+            avgPresentation: buildAvgPresentation(
+                finalDisplayResponse.logs || [],
+                finalDisplayResponse.avgSceneHints,
+                finalState.环境,
+                historyBeforeSend,
+                sceneAssetsFromArchive(currentState.sceneImageArchive, currentState.gameConfig?.AVG主题),
+                currentState.sceneImageArchive?.AVG地点绑定, currentState.gameConfig?.AVG主题
+            ),
+            avgPortraitBindings: resolveAvgPortraits(finalDisplayResponse.logs || [], finalState.社交, historyBeforeSend, undefined, currentState.gameConfig?.AVG主题)
+        };
         const immediateEntry = 构建即时记忆条目(nextGameTime, sendInput, finalDisplayResponse);
         const shortEntry = 构建短期记忆条目(nextGameTime, finalDisplayResponse);
         const aiTurnTimestamp = Date.now();

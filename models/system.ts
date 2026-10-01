@@ -472,6 +472,8 @@ export interface 游戏设置结构 {
     启用免责声明输出: boolean; // Require a separate disclaimer block at the end
     启用标签检测完整性: boolean; // Validate required label protocol completeness before accepting response
     启用标签修复: boolean; // Auto repair malformed labels before parsing
+    启用AVG演出: boolean; // Request bounded scene hints in the existing story response
+    AVG主题?: string; // Per-save art preference; empty selects the general library.
     启用自动重试: boolean; // Auto retry failed generation/parsing up to the built-in max attempts
     启用NSFW模式: boolean; // Gate NSFW prompt and heroine privacy UI
     启用饱腹口渴系统: boolean; // Toggle hunger/thirst prompt injection and UI visibility

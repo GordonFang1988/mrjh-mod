@@ -15,6 +15,7 @@ import {
     酒馆预设模式可用
 } from './promptRuntime';
 import { 构建剧情风格助手提示词 } from '../../prompts/runtime/storyStyles';
+import { AVG_FULL_PROTOCOL_PROMPT } from '../../services/avg/vocabulary';
 import { 构建真实世界模式提示词 } from '../../prompts/runtime/realWorldMode';
 import { 构建运行时额外提示词 } from '../../prompts/runtime/nsfw';
 import {
@@ -188,7 +189,8 @@ export const 构建主剧情请求参数 = (
                 realWorldModePrompt,
                 tavernRuntimeExtraPrompt,
                 disclaimerRequirementPrompt || '',
-                tavernOutputProtocolPrompt
+                tavernOutputProtocolPrompt,
+                runtimeGameConfig.启用AVG演出 ? AVG_FULL_PROTOCOL_PROMPT : ''
             ],
             overrideStoryAppendPrompt: novelDecompositionPrompt
         });
@@ -257,6 +259,7 @@ export const 构建主剧情请求参数 = (
         pushEntry('extra_prompt', '额外要求提示词', '用户', 'user', normalizedRuntimeExtraPrompt);
         pushEntry('disclaimer_requirement', '免责声明输出要求', '用户', 'user', disclaimerRequirementPrompt || '');
         pushEntry('format_prompt', '输出格式提示词', '系统', 'system', params.builtContext.contextPieces.格式提示词);
+        pushEntry('avg_protocol', 'AVG演出镜头协议', '系统', 'system', runtimeGameConfig.启用AVG演出 ? AVG_FULL_PROTOCOL_PROMPT : '');
         pushEntry('cot_core', 'COT提示词', '系统', 'system', params.builtContext.contextPieces.COT提示词);
         if (!runtimeGptMode) {
             pushEntry(

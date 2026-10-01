@@ -52,6 +52,9 @@ import {
     记忆压缩任务结构
 } from './useGame/memoryUtils';
 import { 执行主剧情发送工作流 } from './useGame/sendWorkflow';
+import { avgBindingForAsset, avgSamePersonOptions } from '../services/avg/identity';
+import { getAvgPortraitAssets, resolveAvgPortraits } from '../services/avg/portraitResolver';
+import { ENGINEERING_AVG_SCENES } from '../services/avg/sceneResolver';
 import { 执行正文润色 as 执行正文润色工作流 } from './useGame/bodyPolish';
 import { 构建上下文快照数据 } from './useGame/contextSnapshot';
 import { 执行响应命令处理 } from './useGame/responseCommandProcessor';
@@ -2845,6 +2848,82 @@ export const useGame = () => {
         构建文生图额外要求
     });
 
+    const setAvgPortraitImage = async (historyIndex: number, npcId: string, selection: string): Promise<void> => {
+        const npc = 社交.find(item => item.id === npcId);
+        const turn = 历史记录[historyIndex];
+        if (!npc || !turn?.structuredResponse) return;
+        const assets = getAvgPortraitAssets();
+        const allBindings = 历史记录.flatMap(item => Object.values(item.structuredResponse?.avgPortraitBindings || {}));
+        const previousPrefab = [...allBindings].reverse().find(item => item.npcId === npcId && item.assetId && !item.assetId.startsWith('archive:'));
+        const selectedBase = npc.AVG美术选择?.baseAssetId;
+        const savedBase = selectedBase ? assets.find(asset => asset.id === selectedBase) : undefined;
+        let baseBinding = savedBase ? avgBindingForAsset(npcId, savedBase, 'manual-prefab') : previousPrefab;
+        if (!baseBinding) {
+            const unselected = { ...npc, AVG美术选择: undefined,
+                图片档案: npc.图片档案 ? { ...npc.图片档案, 已选立绘图片ID: undefined } : undefined };
+            baseBinding = resolveAvgPortraits([{ sender: npc.姓名, text: '选择人物立绘' }], [unselected], [], assets, gameConfig.AVG主题)[npc.姓名];
+        }
+        const options = avgSamePersonOptions(baseBinding, assets);
+        const base = options.find(asset => asset.id === (baseBinding?.baseAssetId || baseBinding?.assetId));
+        const chosen = selection === '__base' ? base : options.find(asset => asset.id === selection);
+        if (selection !== '__auto' && !chosen) throw new Error('此人物没有可用的同人立绘，请先导入对应图包');
+        const preference: import('../models/avg').AvgPortraitSelection = selection === '__auto'
+            ? { source: 'auto', baseAssetId: base?.id, assetId: baseBinding?.assetId }
+            : { source: 'prefab', baseAssetId: base!.id, assetId: chosen!.id };
+        const nextSocial = 社交.map(item => item.id === npcId ? { ...item, AVG美术选择: preference } : item);
+        const replacement = selection === '__auto'
+            ? resolveAvgPortraits([{ sender: npc.姓名, text: '选择人物立绘' }], nextSocial, 历史记录, assets, gameConfig.AVG主题)[npc.姓名]
+            : avgBindingForAsset(npcId, chosen!, 'manual-prefab');
+        const nextHistory = 历史记录.map((item, index) => index === historyIndex ? { ...item,
+            structuredResponse: { ...item.structuredResponse!, avgPortraitBindings: {
+                ...item.structuredResponse!.avgPortraitBindings, [npc.姓名]: replacement
+            } } } : item);
+        设置社交(nextSocial);
+        设置历史记录(nextHistory);
+        await performAutoSave({ social: nextSocial, history: nextHistory, force: true });
+    };
+
+    const setAvgSceneImage = async (historyIndex: number, sceneRef: string, imageId: string): Promise<void> => {
+        const source = 历史记录[historyIndex]?.structuredResponse?.avgPresentation;
+        const target = source?.scenes.find(scene => scene.ref === sceneRef);
+        if (!target || !target.placeKey) return;
+        const archiveRecord = imageId
+            ? (场景图片档案Ref.current.生图历史 || []).find(item => item.id === imageId && item.状态 === 'success')
+            : undefined;
+        if (imageId && !archiveRecord) return;
+        const rawImage = archiveRecord?.本地路径 || archiveRecord?.图片URL || '';
+        const imageRef = rawImage.startsWith('data:image/') ? await dbService.保存图片资源(rawImage) : rawImage;
+        if (imageId && !imageRef) return;
+        const previous = ENGINEERING_AVG_SCENES.find(asset => asset.profile.空间 === target.profile.空间);
+        const currentArchive = 场景图片档案Ref.current;
+        const tagSelected = !!archiveRecord && target.profile.空间 !== '未知';
+        const nextArchive = 规范化场景图片档案({
+            ...currentArchive,
+            AVG地点绑定: {
+                ...currentArchive.AVG地点绑定,
+                [target.placeKey]: imageId ? `archive:${imageId}` : previous?.id || 'neutral'
+            },
+            生图历史: tagSelected ? (currentArchive.生图历史 || []).map(item => item.id === imageId
+                ? { ...item, 本地路径: imageRef, AVG分类: target.profile }
+                : item) : currentArchive.生图历史,
+            最近生图结果: tagSelected && currentArchive.最近生图结果?.id === imageId
+                ? { ...currentArchive.最近生图结果, 本地路径: imageRef, AVG分类: target.profile }
+                : currentArchive.最近生图结果
+        });
+        const replacement = imageId
+            ? { assetId: `archive:${imageId}`, image: imageRef, version: 1, reason: 'manual-archive-selection' }
+            : { assetId: previous?.id, image: previous?.image, version: previous?.version, reason: 'manual-restore-prefab' };
+        const nextHistory = 历史记录.map((item, index) => {
+            const presentation = item.structuredResponse?.avgPresentation;
+            if (index !== historyIndex || !presentation) return item;
+            const scenes = presentation.scenes.map(scene => scene.placeKey === target.placeKey ? { ...scene, ...replacement } : scene);
+            return { ...item, structuredResponse: { ...item.structuredResponse!, avgPresentation: { ...presentation, scenes } } };
+        });
+        设置历史记录(nextHistory);
+        应用场景图片档案到状态(nextArchive);
+        await performAutoSave({ history: nextHistory, sceneImageArchive: nextArchive, force: true });
+    };
+
     return {
         state: gameState,
         meta: {
@@ -2892,8 +2971,16 @@ export const useGame = () => {
             handleCancelVariableGeneration,
             handleRegenerate,
             handlePolishTurn,
+            setAvgSceneImage,
+            setAvgPortraitImage,
             handleRecoverFromParseErrorRaw,
-            saveSettings, saveVisualSettings, saveImageManagerSettings, saveGameSettings, saveMemorySettings,
+            saveSettings, saveVisualSettings, saveImageManagerSettings,
+            saveGameSettings: async (config: 游戏设置结构) => {
+                await saveGameSettings(config);
+                if (历史记录.length && config.AVG主题 !== gameConfig.AVG主题) {
+                    await performAutoSave({ gameConfig: 规范化游戏设置(config), force: true });
+                }
+            }, saveMemorySettings,
             saveBuiltinPromptEntries,
             saveWorldbooks, saveWorldbookPresetGroups,
             updatePrompts, updateFestivals,

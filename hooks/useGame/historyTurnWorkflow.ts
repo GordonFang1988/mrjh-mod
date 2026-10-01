@@ -11,6 +11,9 @@ import type {
     记忆系统结构
 } from '../../types';
 import { 同步剧情小说分解时间校准 } from '../../services/novelDecompositionCalibration';
+import { buildAvgPresentation, sceneAssetsFromArchive } from '../../services/avg/sceneResolver';
+import { resolveAvgPortraits } from '../../services/avg/portraitResolver';
+import { loadAvgPackCatalog } from '../../services/avg/packStore';
 
 type 回合快照结构 = {
     玩家输入: string;
@@ -214,7 +217,7 @@ export const 创建历史回合工作流 = (deps: 历史回合工作流依赖) =
             openingConfig: deps.获取开局配置(),
             allowBootstrapCurrentGroup: true
         });
-        const displayParsed: GameResponse = options?.displayResponse
+        const displayParsedBase: GameResponse = options?.displayResponse
             ? {
                 ...options.displayResponse,
                 tavern_commands: Array.isArray(effectiveParsed.tavern_commands) ? effectiveParsed.tavern_commands : [],
@@ -223,6 +226,16 @@ export const 创建历史回合工作流 = (deps: 历史回合工作流依赖) =
                 variable_calibration_model: effectiveParsed.variable_calibration_model
             }
             : effectiveParsed;
+        await loadAvgPackCatalog().catch(() => undefined);
+        const displayParsed: GameResponse = {
+            ...displayParsedBase,
+            avgPresentation: buildAvgPresentation(
+                displayParsedBase.logs || [], displayParsedBase.avgSceneHints,
+                newState.环境, snapshot.回档前历史,
+                sceneAssetsFromArchive(deps.场景图片档案Ref.current, deps.gameConfig?.AVG主题),
+                deps.场景图片档案Ref.current?.AVG地点绑定, deps.gameConfig?.AVG主题
+            )
+        };
 
         const mergedSocial = (Array.isArray(newState.社交) ? newState.社交 : []).map((npc: any, index: number) => {
             const key = deps.获取NPC唯一标识(npc, index);
@@ -241,6 +254,9 @@ export const 创建历史回合工作流 = (deps: 历史回合工作流依赖) =
             社交: mergedSocial,
             剧情: syncedStory
         };
+        displayParsed.avgPortraitBindings = resolveAvgPortraits(
+            displayParsed.logs || [], patchedState.社交, snapshot.回档前历史, undefined, deps.gameConfig?.AVG主题
+        );
         deps.设置剧情(deps.深拷贝(patchedState.剧情));
         deps.设置玩家门派(deps.深拷贝(patchedState.玩家门派));
         deps.设置任务列表(deps.深拷贝(patchedState.任务列表));

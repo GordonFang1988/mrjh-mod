@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { GameResponse, NPC结构, 视觉设置结构 } from '../../../types';
+import { GameResponse, NPC结构, 视觉设置结构, 场景图片档案 } from '../../../types';
 import { NarratorRenderer, CharacterRenderer, JudgmentRenderer } from './MessageRenderers';
 import GameButton from '../../ui/GameButton';
+import AvgStage from '../AVG/AvgStage';
 import { 构建区域文字样式 } from '../../../utils/visualSettings';
 
 interface Props {
@@ -19,6 +20,9 @@ interface Props {
     collapseThinkingStream?: boolean;
     visualConfig?: 视觉设置结构;
     socialList?: NPC结构[];
+    sceneArchive?: 场景图片档案;
+    onAvgPortraitSelect?: (npcId: string, selection: string) => Promise<void> | void;
+    onAvgImageSelect?: (sceneRef: string, imageId: string) => Promise<void> | void;
     playerProfile?: { 姓名?: string; 头像图片URL?: string };
     turnAnchorRef?: React.Ref<HTMLDivElement>;
 }
@@ -38,6 +42,9 @@ const TurnItem: React.FC<Props> = ({
     collapseThinkingStream = true,
     visualConfig,
     socialList,
+    sceneArchive,
+    onAvgImageSelect,
+    onAvgPortraitSelect,
     playerProfile,
     turnAnchorRef
 }) => {
@@ -51,6 +58,7 @@ const TurnItem: React.FC<Props> = ({
     const [isPolishing, setIsPolishing] = useState(false);
     const [polishError, setPolishError] = useState<string | null>(null);
     const [showOriginalBody, setShowOriginalBody] = useState(false);
+    const [avgView, setAvgView] = useState(false);
     const chatStyle = 构建区域文字样式(visualConfig, '聊天');
 
     type 思考阶段 = 'pre' | 'post';
@@ -322,6 +330,9 @@ const TurnItem: React.FC<Props> = ({
 
                 {/* 右侧容器：移动端贴边悬挂在回合牌右侧，桌面端保持右半区收拢 */}
                 <div className="absolute top-0 left-[calc(100%+4px)] flex shrink-0 items-center gap-1 flex-nowrap sm:static sm:left-auto sm:flex-1 sm:min-w-0 sm:justify-start sm:gap-2 sm:pl-2">
+                    <button type="button" onClick={() => setAvgView(value => !value)}
+                        className={`rounded border px-2 py-1 text-[10px] sm:text-xs font-bold ${avgView ? 'border-amber-400 bg-amber-500/20 text-amber-100' : 'border-amber-500/40 text-amber-300 hover:bg-amber-500/10'}`}
+                        title={avgView ? '返回原文阅读' : '播放 AVG 演出'}>{avgView ? '原文' : 'AVG'}</button>
                     {hasCalibrationRecord && (
                         <button
                             onClick={() => {
@@ -506,7 +517,7 @@ const TurnItem: React.FC<Props> = ({
             )}
 
             <div className="mt-2 space-y-2">
-                {displayLogs.map((log, idx) => {
+                {avgView ? <AvgStage logs={displayLogs} presentation={response.avgPresentation} portraitBindings={response.avgPortraitBindings} socialList={socialList} sceneArchive={sceneArchive} onSelectSceneImage={onAvgImageSelect} onSelectPortrait={onAvgPortraitSelect} /> : displayLogs.map((log, idx) => {
                     const matchedJudgeBlock = 判定日志索引映射[idx] >= 0 ? judgeBlocks[判定日志索引映射[idx]] : undefined;
                     if (log.sender === '旁白') return <NarratorRenderer key={idx} text={log.text} visualConfig={visualConfig} />;
                     if (判定前缀正则.test(log.sender || '')) {

@@ -77,6 +77,8 @@ export interface 场景生图结果 {
     来源?: 图片记录来源类型;
     上传文件名?: string;
     上传时间?: number;
+    /** AVG prefab metadata, assigned only after a human chooses this image for a matching scene. */
+    AVG分类?: import('./avg').AvgSceneProfile;
 }
 
 export interface 图片管理筛选条件 {
@@ -108,6 +110,8 @@ export interface 场景图片档案 {
     最近生图结果?: 场景生图结果;
     生图历史?: 场景生图结果[];
     当前壁纸图片ID?: string;
+    /** Future-turn overrides; old turns keep their own image snapshot. */
+    AVG地点绑定?: Record<string, string>;
 }
 
 export interface NPC生图任务记录 {

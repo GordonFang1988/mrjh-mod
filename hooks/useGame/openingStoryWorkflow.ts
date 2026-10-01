@@ -1,5 +1,9 @@
 import * as textAIService from '../../services/ai/text';
 import * as dbService from '../../services/dbService';
+import { AVG_FULL_PROTOCOL_PROMPT } from '../../services/avg/vocabulary';
+import { buildAvgPresentation, sceneAssetsFromArchive } from '../../services/avg/sceneResolver';
+import { resolveAvgPortraits } from '../../services/avg/portraitResolver';
+import { loadAvgPackCatalog } from '../../services/avg/packStore';
 import type {
     GameResponse,
     OpeningConfig,
@@ -564,7 +568,7 @@ export const 执行开场剧情生成工作流 = async (
         const openingLengthRequirementPrompt = openingContext.contextPieces.字数要求提示词
             || 构建字数要求提示词(1000);
         const openingDisclaimerRequirementPrompt = openingContext.contextPieces.免责声明输出提示词 || undefined;
-        const openingOutputProtocolPrompt = openingContext.contextPieces.输出协议提示词;
+        const openingOutputProtocolPrompt = [openingContext.contextPieces.输出协议提示词, openingGameConfig.启用AVG演出 ? AVG_FULL_PROTOCOL_PROMPT : ''].filter(Boolean).join('\n\n');
         const openingPerspectivePrompt = openingContext.contextPieces.叙事人称提示词 || '';
         const openingStyleAssistantPrompt = 按功能开关过滤提示词内容(
             获取内置提示词槽位内容({
@@ -669,7 +673,8 @@ export const 执行开场剧情生成工作流 = async (
                 overrideCotPrompt: openingCotPromptForTavern,
                 overrideStoryAppendPrompt: openingNovelDecompositionSystemPrompt,
                 worldbookExtraTexts: [
-                    openingPerspectivePrompt
+                     openingPerspectivePrompt,
+                     openingGameConfig.启用AVG演出 ? AVG_FULL_PROTOCOL_PROMPT : ''
                 ]
             });
         } else {
@@ -1219,11 +1224,22 @@ export const 执行开场剧情生成工作流 = async (
             });
         }
 
-        const displayAiData: GameResponse = {
+        const displayAiDataBase: GameResponse = {
             ...aiData,
             tavern_commands: Array.isArray(responseForExecution.tavern_commands) ? [...responseForExecution.tavern_commands] : []
         };
         const openingStateAfterCommands = deps.processResponseCommands(responseForExecution, commandBaseState);
+        const avgSceneArchive = await dbService.读取设置(设置键.场景图片档案);
+        await loadAvgPackCatalog().catch(() => undefined);
+        const displayAiData: GameResponse = {
+            ...displayAiDataBase,
+            avgPresentation: buildAvgPresentation(
+                displayAiDataBase.logs || [], displayAiDataBase.avgSceneHints,
+                openingStateAfterCommands.环境, [], sceneAssetsFromArchive(avgSceneArchive as any, openingGameConfig.AVG主题),
+                (avgSceneArchive as any)?.AVG地点绑定, openingGameConfig.AVG主题
+            ),
+            avgPortraitBindings: resolveAvgPortraits(displayAiDataBase.logs || [], openingStateAfterCommands.社交, [], undefined, openingGameConfig.AVG主题)
+        };
         const openingNewNpcList = deps.提取新增NPC列表(commandBaseState.社交, openingStateAfterCommands.社交);
         const hasOpeningCommands = Array.isArray(responseForExecution?.tavern_commands) && responseForExecution.tavern_commands.length > 0;
         if (!hasOpeningCommands) {

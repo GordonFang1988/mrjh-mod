@@ -1,5 +1,6 @@
 import { GameResponse } from '../../types';
 import { parseJsonWithRepair } from '../../utils/jsonRepair';
+import { normalizeAvgHints } from '../avg/vocabulary';
 
 export interface StoryParseOptions {
     validateTagCompleteness?: boolean;
@@ -21,7 +22,7 @@ export class StoryResponseParseError extends Error {
 }
 
 const 转义正则片段 = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const 协议标签列表 = ['thinking', '剧情规划', '变量规划', '正文', '短期记忆', '命令', '行动选项', '动态世界', 'judge'] as const;
+const 协议标签列表 = ['thinking', '剧情规划', '变量规划', '正文', '短期记忆', '命令', '行动选项', '动态世界', '演出场景', 'judge'] as const;
 const 协议标签集合 = new Set<string>(协议标签列表);
 const 协议固定必填标签 = ['正文', '短期记忆'] as const;
 const 默认解析选项: Required<StoryParseOptions> = {
@@ -85,6 +86,7 @@ const 协议标签别名映射: Record<string, 协议标签> = {
     dynamicworld: '动态世界',
     worldevent: '动态世界',
     worldevents: '动态世界',
+    演出场景: '演出场景',
     judge: 'judge'
 };
 
@@ -305,7 +307,7 @@ const 提取候选命令文本 = (text: string): string => {
 
 const 提取候选正文文本 = (text: string): string => {
     let stripped = (text || '').replace(/\r\n/g, '\n');
-    for (const tag of ['剧情规划', '变量规划', '短期记忆', '命令', '行动选项', '动态世界', 'judge']) {
+    for (const tag of ['剧情规划', '变量规划', '短期记忆', '命令', '行动选项', '动态世界', '演出场景', 'judge']) {
         const escapedTag = 转义正则片段(tag);
         stripped = stripped.replace(new RegExp(`<\\s*${escapedTag}\\s*>[\\s\\S]*?<\\s*/\\s*${escapedTag}\\s*>`, 'gi'), '\n');
     }
@@ -316,7 +318,7 @@ const 提取候选正文文本 = (text: string): string => {
         .split('\n')
         .map(line => line.trim())
         .filter(Boolean)
-        .filter(line => !/^<[^>]+>$/.test(line))
+        .filter(line => !/^<[^>]+>$/.test(line) || /^<\s*镜头\s+ref\s*=/.test(line))
         .filter(line => !Object.values(协议标题匹配规则).some(rule => rule.test(line)));
     return lines.join('\n').trim();
 };
@@ -619,11 +621,24 @@ const 提取正文中的Judge区块 = (body: string): { cleanBody: string; judge
 const 解析正文日志 = (body: string): Array<{ sender: string; text: string }> => {
     if (!body || !body.trim()) return [];
     const lines = body.replace(/\r\n/g, '\n').split('\n');
-    const logs: Array<{ sender: string; text: string }> = [];
-    let current: { sender: string; text: string } | null = null;
+    const logs: Array<{ sender: string; text: string; avgSceneRef?: string }> = [];
+    let current: { sender: string; text: string; avgSceneRef?: string } | null = null;
+    let sceneRef: string | undefined;
 
     for (const rawLine of lines) {
         const line = rawLine.trim();
+        const marker = line.match(/^<\s*镜头\s+ref\s*=\s*["'](s[1-9][0-9]?)["']\s*\/\s*>$/);
+        if (marker) {
+            sceneRef = marker[1];
+            current = null;
+            continue;
+        }
+        // A malformed marker is still metadata, never dialogue or a game instruction.
+        if (/^<\s*\/?\s*镜头\b/.test(line)) {
+            sceneRef = undefined;
+            current = null;
+            continue;
+        }
 
         if (!line) {
             if (current) {
@@ -636,7 +651,7 @@ const 解析正文日志 = (body: string): Array<{ sender: string; text: string 
         if (match) {
             const sender = 规范化日志发送者(match[1]);
             const text = (match[2] || '').trim();
-            current = { sender, text };
+            current = { sender, text, avgSceneRef: sceneRef };
             logs.push(current);
             continue;
         }
@@ -646,7 +661,7 @@ const 解析正文日志 = (body: string): Array<{ sender: string; text: string 
             continue;
         }
 
-        current = { sender: '旁白', text: rawLine.trimEnd() };
+        current = { sender: '旁白', text: rawLine.trimEnd(), avgSceneRef: sceneRef };
         logs.push(current);
     }
 
@@ -1196,7 +1211,11 @@ const 解析标签协议响应 = (content: string): GameResponse | null => {
     const commandBlock = 提取首个标签内容(textWithoutThinking, '命令') || titleSections.命令 || '';
     const actionOptionsBlock = 提取首个标签内容(textWithoutThinking, '行动选项') || titleSections.行动选项 || '';
     const dynamicWorldBlock = 提取首个标签内容(textWithoutThinking, '动态世界') || titleSections.动态世界 || '';
-    const bodyJudgeExtraction = 提取正文中的Judge区块(bodyBlock || '');
+    const avgSceneBlock = 提取首个标签内容(textWithoutThinking, '演出场景');
+    const avgSceneJson = avgSceneBlock ? parseJsonWithRepair<unknown>(avgSceneBlock).value : undefined;
+    const bodyWithoutMalformedMetadata = (bodyBlock || '').replace(
+        /<\s*(剧情规划|变量规划|短期记忆|命令|行动选项|动态世界|演出场景)(?=\s)[^>]*\/\s*>/gi, '\n');
+    const bodyJudgeExtraction = 提取正文中的Judge区块(bodyWithoutMalformedMetadata);
     const fallbackJudgeBlocks = 提取标签内容列表(textWithoutThinking, 'judge', { 兼容错误闭合: true })
         .map(item => item.replace(/\r\n/g, '\n').trim())
         .filter(Boolean)
@@ -1216,8 +1235,13 @@ const 解析标签协议响应 = (content: string): GameResponse | null => {
 
     let logs = 解析正文日志(bodyJudgeExtraction.cleanBody);
     if (logs.length === 0) {
-        const stripped = 提取正文中的Judge区块(textWithoutThinking).cleanBody
-            .replace(/<[^>]+>/g, '\n');
+        // A model may omit the body wrapper while returning valid camera markers.
+        // Remove metadata blocks, but keep the markers for the narrative parser.
+        const narrativeFallback = textWithoutThinking.replace(
+            /<\s*(thinking|剧情规划|变量规划|短期记忆|命令|行动选项|动态世界|演出场景)(?=\s|>)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '\n'
+        );
+        const stripped = 提取正文中的Judge区块(narrativeFallback).cleanBody
+            .replace(/<(?!\s*镜头\s+ref\s*=)[^>]+>/g, '\n');
         if (/【[^】]+】/.test(stripped)) {
             logs = 解析正文日志(stripped);
         }
@@ -1238,6 +1262,7 @@ const 解析标签协议响应 = (content: string): GameResponse | null => {
         t_plan: storyPlanBlock || undefined,
         t_var_plan: variablePlanBlock || undefined,
         logs,
+        avgSceneHints: normalizeAvgHints(avgSceneJson),
         tavern_commands: commands.length > 0 ? commands : undefined,
         shortTerm: shortTerm || undefined,
         action_options: actionOptions.length > 0 ? actionOptions : undefined,
@@ -1276,7 +1301,8 @@ const 归一化JSON结构响应 = (raw: any): GameResponse => {
                 if (item && typeof item === 'object') {
                     return {
                         sender: typeof item.sender === 'string' ? item.sender : '旁白',
-                        text: typeof item.text === 'string' ? item.text : String(item.text ?? '')
+                        text: typeof item.text === 'string' ? item.text : String(item.text ?? ''),
+                        avgSceneRef: typeof item.avgSceneRef === 'string' ? item.avgSceneRef : undefined
                     };
                 }
                 return null;
@@ -1314,6 +1340,7 @@ const 归一化JSON结构响应 = (raw: any): GameResponse => {
         thinking_pre: typeof raw?.thinking_pre === 'string' ? raw.thinking_pre : undefined,
         thinking_native: typeof raw?.thinking_native === 'string' ? raw.thinking_native : undefined,
         logs,
+        avgSceneHints: normalizeAvgHints(raw?.avgSceneHints),
         ...normalizedThinkingFields,
         thinking_post: typeof raw?.thinking_post === 'string' ? raw.thinking_post : undefined,
         tavern_commands: normalizedTavernCommands,

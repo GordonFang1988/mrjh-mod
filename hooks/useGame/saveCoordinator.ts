@@ -1,3 +1,4 @@
+import { recoverMissingAvgArt } from '../../services/avg/missingArtRecovery';
 import * as dbService from '../../services/dbService';
 import type {
     存档结构,
@@ -27,6 +28,7 @@ import { 设置键 } from '../../utils/settingsSchema';
 import { 环境时间转标准串 } from './timeUtils';
 
 export type 自动存档快照结构 = {
+    gameConfig?: 游戏设置结构;
     history?: 聊天记录结构[];
     role?: 角色数据结构;
     env?: 环境信息结构;
@@ -92,6 +94,7 @@ type 存档协调依赖 = {
     规范化可选开局配置: (raw?: any) => OpeningConfig | undefined;
     规范化记忆配置: (raw?: Partial<记忆配置结构> | null) => 记忆配置结构;
     规范化游戏设置: (raw?: Partial<游戏设置结构> | null) => 游戏设置结构;
+    获取当前游戏设置?: () => 游戏设置结构;
     规范化视觉设置: (raw?: Partial<视觉设置结构> | null) => 视觉设置结构;
     规范化场景图片档案: (raw?: any) => 场景图片档案;
     规范化角色物品容器映射: (raw?: any) => 角色数据结构;
@@ -272,7 +275,7 @@ export const 创建存档数据 = (
         ),
         记忆系统: deps.规范化记忆系统(deps.深拷贝(memorySource)),
         openingConfig: deps.规范化可选开局配置(deps.深拷贝(openingConfigSource)),
-        游戏设置: deps.深拷贝(currentState.gameConfig),
+        游戏设置: deps.深拷贝(snapshot?.gameConfig || currentState.gameConfig),
         记忆配置: deps.深拷贝(currentState.memoryConfig),
         视觉设置: deps.规范化视觉设置(deps.深拷贝(visualSource || {})),
         场景图片档案: deps.规范化场景图片档案(deps.深拷贝(sceneImageArchiveSource)),
@@ -334,10 +337,14 @@ export const 执行读取存档 = async (
     deps.重置自动存档状态();
     deps.设置最近开局配置(null);
 
-    const saveGameConfig = save.游戏设置 ? deps.规范化游戏设置(save.游戏设置) : undefined;
+    const saveGameConfig = save.游戏设置 ? deps.规范化游戏设置(save.游戏设置)
+        : deps.规范化游戏设置({ ...deps.获取当前游戏设置?.(), AVG主题: '' });
+    const recoveredArt = await recoverMissingAvgArt(
+        Array.isArray(save.历史记录) ? save.历史记录 : [], deps.规范化社交列表(save.社交 || []),
+        saveGameConfig.AVG主题, save.场景图片档案);
     deps.设置角色(deps.规范化角色物品容器映射(save.角色数据));
     deps.设置环境(deps.规范化环境信息(save.环境信息 || deps.创建开场空白环境()));
-    deps.设置社交(deps.规范化社交列表(save.社交 || []));
+    deps.设置社交(recoveredArt.social);
     deps.设置世界(deps.规范化世界状态(save.世界 || deps.创建开场空白世界()));
     deps.设置战斗(deps.规范化战斗状态(save.战斗 || deps.创建开场空白战斗()));
     deps.设置玩家门派(save.玩家门派 || deps.创建空门派状态());
@@ -377,7 +384,7 @@ export const 执行读取存档 = async (
             await dbService.保存设置(设置键.提示词池, nextPromptPool);
         }
     }
-    deps.设置历史记录(Array.isArray(save.历史记录) ? save.历史记录 : []);
+    deps.设置历史记录(recoveredArt.history);
     deps.应用并同步记忆系统(deps.规范化记忆系统(save.记忆系统), { 静默总结提示: true });
 
     if (saveGameConfig) deps.setGameConfig(saveGameConfig);

@@ -3,6 +3,7 @@ import { normalizeCanonicalGameTime, 结构化时间转标准串 } from './timeU
 import { normalizeBodyPartVitals } from '../../utils/characterVitals';
 import { 压缩图片资源字段 } from '../../utils/imageAssets';
 import { filterValidSocialNpcRecords } from '../../utils/npcCommandSafety';
+import { normalizeAvgPortraitProfile } from '../../services/avg/portraitVocabulary';
 
 const 深拷贝 = <T,>(data: T): T => JSON.parse(JSON.stringify(data)) as T;
 const 默认装备模板 = {
@@ -997,7 +998,8 @@ const 合并NPC图片档案对象 = (leftRaw: any, rightRaw: any): any | undefin
 
 const 标准化单个NPC = (rawNpc: any, fallbackIndex: number): any => {
     const npc = rawNpc && typeof rawNpc === 'object' ? rawNpc : {};
-    const npc其他字段 = { ...npc };
+    const { AVG立绘特征: _unvalidatedAvgProfile, ...npc其他字段 } = npc;
+    const AVG立绘特征 = normalizeAvgPortraitProfile(npc?.AVG立绘特征);
     const 外貌描写 = 取首个非空文本(
         npc?.外貌描写,
         npc?.外貌,
@@ -1076,6 +1078,7 @@ const 标准化单个NPC = (rawNpc: any, fallbackIndex: number): any => {
         ...(外貌描写 ? { 外貌描写 } : {}),
         ...(身材描写 ? { 身材描写 } : {}),
         ...(衣着风格 ? { 衣着风格 } : {}),
+        ...(AVG立绘特征 ? { AVG立绘特征 } : {}),
         ...(胸部描述 ? { 胸部描述 } : {}),
         ...(小穴描述 ? { 小穴描述 } : {}),
         ...(屁穴描述 ? { 屁穴描述 } : {}),
@@ -1142,6 +1145,7 @@ const 合并NPC对象 = (leftRaw: any, rightRaw: any, fallbackIndex: number): an
         外貌描写: 取更优文本(取字段文本(left, '外貌描写'), 取字段文本(right, '外貌描写')),
         身材描写: 取更优文本(取字段文本(left, '身材描写'), 取字段文本(right, '身材描写')),
         衣着风格: 取更优文本(取字段文本(left, '衣着风格'), 取字段文本(right, '衣着风格')),
+        AVG立绘特征: normalizeAvgPortraitProfile({ ...(left?.AVG立绘特征 || {}), ...(right?.AVG立绘特征 || {}) }),
         胸部描述: 取更优文本(读取胸部描述(left), 读取胸部描述(right)),
         小穴描述: 取更优文本(读取小穴描述(left), 读取小穴描述(right)),
         屁穴描述: 取更优文本(读取屁穴描述(left), 读取屁穴描述(right)),

@@ -1,5 +1,5 @@
 import React from 'react';
-import { 聊天记录结构, NPC结构, 视觉设置结构 } from '../../../types';
+import { 聊天记录结构, NPC结构, 视觉设置结构, 场景图片档案 } from '../../../types';
 import TurnItem from './TurnItem';
 import { 构建区域文字样式 } from '../../../utils/visualSettings';
 import BookLoader from '../../ui/BookLoader';
@@ -12,6 +12,9 @@ interface Props {
     onPolishTurn?: (index: number) => Promise<string | null> | string | null;
     visualConfig?: 视觉设置结构;
     socialList?: NPC结构[];
+    sceneArchive?: 场景图片档案;
+    onAvgPortraitSelect?: (historyIndex: number, npcId: string, selection: string) => Promise<void> | void;
+    onAvgImageSelect?: (historyIndex: number, sceneRef: string, imageId: string) => Promise<void> | void;
     playerProfile?: { 姓名?: string; 头像图片URL?: string };
     renderCount?: number;
     suppressAutoScrollToken?: number;
@@ -47,7 +50,11 @@ const 解析流式草稿显示 = (content: string): 流式草稿显示结构 => 
     const 提取正文片段 = (text: string): string => {
         const target = typeof text === 'string' ? text : '';
         if (!target) return '';
-        return target.replace(bodyCloseRegex, '').trimStart();
+        return target
+            .replace(bodyCloseRegex, '')
+            .replace(/<\s*演出场景\s*>[\s\S]*?(?:<\s*\/\s*演出场景\s*>|$)/gi, '')
+            .replace(/<\s*镜头[^\n>]*(?:>|$)/gi, '')
+            .trimStart();
     };
 
     if (lastBodyOpenIndex >= 0) {
@@ -66,7 +73,7 @@ const 解析流式草稿显示 = (content: string): 流式草稿显示结构 => 
     };
 };
 
-const ChatList: React.FC<Props> = ({ history, loading, scrollRef, onUpdateHistory, onPolishTurn, visualConfig, socialList, playerProfile, renderCount = 10, suppressAutoScrollToken, forceScrollToken }) => {
+const ChatList: React.FC<Props> = ({ history, loading, scrollRef, onUpdateHistory, onPolishTurn, visualConfig, socialList, sceneArchive, onAvgImageSelect, onAvgPortraitSelect, playerProfile, renderCount = 10, suppressAutoScrollToken, forceScrollToken }) => {
     const normalizedRenderCount = Number.isFinite(renderCount) ? Math.max(1, Math.floor(renderCount)) : 10;
     const chatStyle = 构建区域文字样式(visualConfig, '聊天');
     const 底部判定阈值 = 120;
@@ -268,6 +275,9 @@ const ChatList: React.FC<Props> = ({ history, loading, scrollRef, onUpdateHistor
                                     collapseThinkingStream={visualConfig?.AI思考流式折叠 !== false}
                                     visualConfig={visualConfig}
                                     socialList={socialList}
+                                    sceneArchive={sceneArchive}
+                                    onAvgPortraitSelect={(npcId, selection) => onAvgPortraitSelect?.(absoluteIdx, npcId, selection)}
+                                    onAvgImageSelect={(sceneRef, imageId) => onAvgImageSelect?.(absoluteIdx, sceneRef, imageId)}
                                     playerProfile={playerProfile}
                                 />
                             </div>
@@ -294,9 +304,12 @@ const ChatList: React.FC<Props> = ({ history, loading, scrollRef, onUpdateHistor
                     if (msg.role === 'assistant') {
                         const shouldCollapseThinking = visualConfig?.AI思考流式折叠 !== false;
                         const streamDisplay = 解析流式草稿显示(msg.content || '');
-                        const displayText = shouldCollapseThinking
+                        const displayTextRaw = shouldCollapseThinking
                             ? (streamDisplay.正文内容 || (streamDisplay.是否思考中 ? '' : (msg.content || '...')))
                             : (msg.content || '...');
+                        const displayText = displayTextRaw
+                            .replace(/<\s*演出场景\s*>[\s\S]*?(?:<\s*\/\s*演出场景\s*>|$)/gi, '')
+                            .replace(/<\s*镜头[^\n>]*(?:>|$)/gi, '');
 
                         return (
                             <div key={absoluteIdx} className="flex w-full justify-center animate-slide-in mb-6">

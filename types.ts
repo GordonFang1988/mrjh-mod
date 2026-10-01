@@ -16,6 +16,7 @@ export * from './models/fandomPlanning/heroinePlan';
 export * from './models/battle';
 export * from './models/worldbook';
 export * from './models/novelDecomposition';
+export * from './models/avg';
 
 // New types for the advanced chat system
 
@@ -30,6 +31,7 @@ export interface TavernCommand {
 export interface GameLog {
     sender: string;
     text: string;
+    avgSceneRef?: string;
 }
 
 export interface JudgmentThoughtBlock {
@@ -41,6 +43,9 @@ export interface JudgmentThoughtBlock {
 
 export interface GameResponse {
     logs: GameLog[];
+    avgSceneHints?: import('./models/avg').AvgSceneHint[];
+    avgPresentation?: import('./models/avg').AvgPresentation;
+    avgPortraitBindings?: Record<string, import('./models/avg').AvgPortraitBinding>;
     thinking_pre?: string;
     thinking_native?: string;
     t_input?: string;

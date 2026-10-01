@@ -240,6 +240,31 @@ const 还原导入对象图片 = async (
     }
 };
 
+const 收集AVG历史图片 = (records: unknown): Array<{ target: Record<string, unknown>; hint: string }> => {
+    if (!Array.isArray(records)) return [];
+    const images: Array<{ target: Record<string, unknown>; hint: string }> = [];
+    records.forEach((record, turnIndex) => {
+        const response = record?.structuredResponse;
+        const scenes = response?.avgPresentation?.scenes;
+        if (Array.isArray(scenes)) {
+            scenes.forEach((scene, sceneIndex) => {
+                if (scene && typeof scene.image === 'string') {
+                    images.push({ target: scene, hint: `history_${turnIndex}_scene_${sceneIndex}` });
+                }
+            });
+        }
+        const bindings = response?.avgPortraitBindings;
+        if (bindings && typeof bindings === 'object' && !Array.isArray(bindings)) {
+            Object.values(bindings).forEach((binding: any, bindingIndex) => {
+                if (binding && typeof binding.image === 'string') {
+                    images.push({ target: binding, hint: `history_${turnIndex}_portrait_${bindingIndex}` });
+                }
+            });
+        }
+    });
+    return images;
+};
+
 export const 导出ZIP存档文件 = async (): Promise<Blob> => {
     const payload = await dbService.导出存档数据();
     const saves = Array.isArray(payload.saves) ? payload.saves : [];
@@ -269,10 +294,17 @@ export const 导出ZIP存档文件 = async (): Promise<Blob> => {
 
         await 处理导出对象图片(gameData, saveKey, files, sourceToPath, sourceToBytes, ['save', saveKey]);
 
+        const historyRecords = Array.isArray(save.历史记录) ? save.历史记录 : [];
+        for (const { target, hint } of 收集AVG历史图片(historyRecords)) {
+            const holder = { 背景图片: target.image };
+            await 处理导出对象图片(holder, saveKey, files, sourceToPath, sourceToBytes, [hint]);
+            target.image = holder.背景图片;
+        }
+
         files[gameDataPath] = strToU8(JSON.stringify(gameData, null, 2));
         files[historyPath] = strToU8(JSON.stringify({
             version: ZIP存档版本,
-            records: Array.isArray(save.历史记录) ? save.历史记录 : []
+            records: historyRecords
         }, null, 2));
 
         manifest.saves.push({
@@ -351,10 +383,17 @@ export const 解析ZIP存档文件 = async (file: Blob): Promise<dbService.存�
 
         await 还原导入对象图片(gameData, archiveImages);
 
+        const historyRecords = Array.isArray(historyPayload?.records) ? historyPayload.records : [];
+        for (const { target } of 收集AVG历史图片(historyRecords)) {
+            const holder = { 背景图片: target.image };
+            await 还原导入对象图片(holder, archiveImages);
+            target.image = holder.背景图片;
+        }
+
         saves.push({
             ...(gameData || {}),
             id: Number(gameData?.id) || 0,
-            历史记录: Array.isArray(historyPayload?.records) ? historyPayload.records : []
+            历史记录: historyRecords
         } as 存档结构);
     }
 

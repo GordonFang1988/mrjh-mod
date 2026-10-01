@@ -1,4 +1,5 @@
 import { 游戏设置结构 } from '../types';
+import { normalizeAvgTheme } from '../services/avg/identity';
 import { 默认额外系统提示词, 旧版默认额外系统提示词 } from '../prompts/runtime/defaults';
 import { 获取酒馆预设顺序, 规范化酒馆预设 } from './tavernPreset';
 
@@ -122,6 +123,7 @@ export const 默认游戏设置: 游戏设置结构 = {
     启用免责声明输出: false,
     启用标签检测完整性: false,
     启用标签修复: true,
+    启用AVG演出: true,
     启用自动重试: false,
     启用NSFW模式: false,
     启用饱腹口渴系统: true,
@@ -217,6 +219,8 @@ export const 规范化游戏设置 = (
         启用免责声明输出: 读取布尔(source.启用免责声明输出, fallback.启用免责声明输出 === true),
         启用标签检测完整性: 读取布尔(source.启用标签检测完整性, fallback.启用标签检测完整性 === true),
         启用标签修复: 读取布尔(source.启用标签修复, fallback.启用标签修复 !== false),
+        启用AVG演出: 读取布尔(source.启用AVG演出, fallback.启用AVG演出 !== false),
+        AVG主题: normalizeAvgTheme(source.AVG主题),
         启用自动重试: 读取布尔(source.启用自动重试, fallback.启用自动重试 === true),
         启用NSFW模式: 读取布尔(source.启用NSFW模式, fallback.启用NSFW模式 === true),
         启用饱腹口渴系统: 读取布尔(source.启用饱腹口渴系统, fallback.启用饱腹口渴系统 !== false),

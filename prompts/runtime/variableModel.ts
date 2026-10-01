@@ -1,6 +1,7 @@
 import type { GameResponse } from '../../types';
 import { 构建开局变量生成承接提示 } from './openingVariableGenerationInit';
 import { 按功能开关过滤提示词内容, 构建修炼体系附加块 } from '../../utils/promptFeatureToggles';
+import { AVG_PORTRAIT_ARCHIVE_PROMPT } from '../../services/avg/portraitVocabulary';
 
 const 渲染变量模板 = (template: string, variables: Record<string, string>): string => (
     (template || '').replace(/\$\{([a-zA-Z0-9_]+)\}/g, (_match, key) => variables[key] ?? '')
@@ -67,6 +68,7 @@ export const 构建变量模型输出格式提示词 = (): string => 格式化�
         '- `<命令>` 中通常每行只允许 `add|set|push|delete 路径 = 值`；但给已有 NPC 追加个人记忆时，必须使用 JSON 命令 `{"action":"pushNpcMemory","npcId":"NPC的id","npcName":"NPC姓名","value":{"时间":"标准时间","内容":"该NPC自身可知事实"}}`。',
         '- `<命令>` 禁止使用 `社交[数字].字段` 修改已有 NPC；NPC 数组下标不是身份，尤其禁止 `是否在场/好感度/关系状态/记忆/最近互动/关系记忆` 这类 indexed social writes。',
         '- 新 NPC 优先用 JSON 命令 `{"action":"registerNpc","npcId":"NPC的id","npcName":"NPC姓名","value":{...完整NPC对象...}}`；也可 `push 社交 = {...完整NPC对象...}` 一次性创建，必须包含明确 `id` 和 `姓名`，不能创建空 NPC 后再补字段。',
+        AVG_PORTRAIT_ARCHIVE_PROMPT,
         '- 已有 NPC 的在场、好感、关系、队友等状态更新，必须用 JSON 命令 `{"action":"updateNpcState","npcId":"NPC的id","npcName":"NPC姓名","value":{"是否在场":true}}`，不要写 `社交[i]`。',
         '- `<命令>` 不写替换旧命令、取消旧命令、伪索引修补或其他补丁语法；只写本回合最终新增的变量命令。',
         '- 正常回合与开局回合都应尽量产生命令；只有正文确实没有形成任何已成立变量变化时，`<命令>` 才允许为空。',

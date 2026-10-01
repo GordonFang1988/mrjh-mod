@@ -16,7 +16,7 @@ import { 构建COT伪装提示词 } from './promptRuntime';
 import { 环境时间转标准串 } from './timeUtils';
 import { 规范化环境信息, 构建完整地点文本 } from './stateTransforms';
 
-type 正文日志结构 = Array<{ sender: string; text: string }>;
+type 正文日志结构 = Array<{ sender: string; text: string; avgSceneRef?: string }>;
 
 type 正文润色依赖 = {
     apiConfig: 接口设置结构;
@@ -72,16 +72,20 @@ const 解析正文日志文本 = (bodyText: string): 正文日志结构 => {
     if (!source) return [];
     const lines = source.replace(/\r\n/g, '\n').split('\n');
     const logs: 正文日志结构 = [];
-    let current: { sender: string; text: string } | null = null;
+    let current: { sender: string; text: string; avgSceneRef?: string } | null = null;
+    let sceneRef: string | undefined;
 
     for (const rawLine of lines) {
         const line = rawLine.trim();
         if (!line) continue;
+        const marker = line.match(/^<\s*镜头\s+ref\s*=\s*["'](s[1-9][0-9]?)["']\s*\/\s*>$/);
+        if (marker) { sceneRef = marker[1]; current = null; continue; }
+        if (/^<\s*\/?\s*镜头\b/.test(line)) { sceneRef = undefined; current = null; continue; }
         const match = line.match(/^【\s*([^】]+?)\s*】\s*(.*)$/);
         if (match) {
             const sender = 规范化正文发送者(match[1]);
             const text = (match[2] || '').trim();
-            current = { sender, text };
+            current = { sender, text, avgSceneRef: sceneRef };
             logs.push(current);
             continue;
         }
@@ -89,7 +93,7 @@ const 解析正文日志文本 = (bodyText: string): 正文日志结构 => {
             current.text = `${current.text}\n${line}`.trim();
             continue;
         }
-        current = { sender: '旁白', text: line };
+        current = { sender: '旁白', text: line, avgSceneRef: sceneRef };
         logs.push(current);
     }
 
@@ -97,12 +101,15 @@ const 解析正文日志文本 = (bodyText: string): 正文日志结构 => {
 };
 
 const 构建正文文本 = (logs: 正文日志结构): string => {
+    let previousRef: string | undefined;
     return (Array.isArray(logs) ? logs : [])
         .filter(item => item && typeof item.text === 'string' && item.text.trim().length > 0)
         .map(item => {
             const sender = (item.sender || '').trim();
             const senderToken = sender.startsWith('【') ? sender : `【${sender || '旁白'}】`;
-            return `${senderToken}${item.text}`;
+            const marker = item.avgSceneRef && item.avgSceneRef !== previousRef ? `<镜头 ref="${item.avgSceneRef}"/>\n` : '';
+            previousRef = item.avgSceneRef;
+            return `${marker}${senderToken}${item.text}`;
         })
         .join('\n');
 };
@@ -267,7 +274,10 @@ export const 执行正文润色 = async (
         polishRuntimeGuard,
         polishSceneContext,
         polishOutputContract,
-        核心_文章优化思维链.内容
+        核心_文章优化思维链.内容,
+        (baseResponse.logs || []).some(log => !!log.avgSceneRef)
+            ? '【AVG镜头边界】输入中每个<镜头 ref="sN"/>必须原样保留；顺序、次数和所属段落不得改变。可以改写镜头内部的旁白和台词，不得增删或挪动镜头边界。'
+            : ''
     ]
         .filter((item) => typeof item === 'string' && item.trim().length > 0)
         .join('\n\n');
@@ -298,6 +308,14 @@ export const 执行正文润色 = async (
         sourceLogs,
         解析正文日志文本(polishedResult.bodyText)
     );
+    const segmentSequence = (logs: 正文日志结构): string[] => logs.reduce<string[]>((refs, log) => {
+        if (log.avgSceneRef && log.avgSceneRef !== refs[refs.length - 1]) refs.push(log.avgSceneRef);
+        return refs;
+    }, []);
+    const sourceSegments = segmentSequence(sourceLogs);
+    if (sourceSegments.length > 0 && JSON.stringify(segmentSequence(polishedLogs)) !== JSON.stringify(sourceSegments)) {
+        return { response: baseResponse, applied: false, error: '润色改变了场景边界，已保留原文演出。', rawText: polishedResult.rawText };
+    }
     if (polishedLogs.length === 0) {
         return { response: baseResponse, applied: false, error: '优化后正文为空，已保留原文。', rawText: polishedResult.rawText };
     }

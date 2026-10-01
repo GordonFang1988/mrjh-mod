@@ -95,6 +95,9 @@ export interface NPC结构 {
     外貌描写?: string;
     身材描写?: string;
     衣着风格?: string;
+    AVG立绘特征?: import('./avg').AvgPortraitProfile;
+    AVG具名角色Key?: string;
+    AVG美术选择?: import('./avg').AvgPortraitSelection;
 
     // --- 扁平化：私密相关（新版） ---
     胸部描述?: string; // 应包含胸型/体量 + 乳头乳晕大小与颜色等

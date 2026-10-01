@@ -11,6 +11,7 @@ const StorageManager = React.lazy(() => import('../StorageManager'));
 const ThemeSettings = React.lazy(() => import('../ThemeSettings'));
 const VisualSettings = React.lazy(() => import('../VisualSettings'));
 const WorldSettings = React.lazy(() => import('../WorldSettings'));
+const AvgSettings = React.lazy(() => import('../AvgSettings'));
 const GameSettings = React.lazy(() => import('../GameSettings'));
 const RealitySettings = React.lazy(() => import('../RealitySettings'));
 const TavernPresetSettings = React.lazy(() => import('../TavernPresetSettings'));
@@ -30,7 +31,7 @@ const MusicSettings = React.lazy(() => import('../MusicSettings'));
 const NpcManager = React.lazy(() => import('../NpcManager'));
 const VariableManager = React.lazy(() => import('../VariableManager'));
 
-type SettingsTab = 'api' | 'image_generation' | 'recall' | 'memory_summary_model' | 'polish' | 'world_evolution' | 'variable_model' | 'planning_model' | 'independent_api_gpt' | 'novel_decomposition' | 'novel_decomposition_runtime' | 'prompt' | 'storage' | 'theme' | 'visual' | 'world' | 'game' | 'reality' | 'tavern_preset' | 'memory' | 'history' | 'context' | 'music' | 'npc_management' | 'variable_manager';
+type SettingsTab = 'api' | 'avg' | 'image_generation' | 'recall' | 'memory_summary_model' | 'polish' | 'world_evolution' | 'variable_model' | 'planning_model' | 'independent_api_gpt' | 'novel_decomposition' | 'novel_decomposition_runtime' | 'prompt' | 'storage' | 'theme' | 'visual' | 'world' | 'game' | 'reality' | 'tavern_preset' | 'memory' | 'history' | 'context' | 'music' | 'npc_management' | 'variable_manager';
 type RuntimeStateSections = Record<'角色' | '环境' | '社交' | '世界' | '战斗' | '剧情' | '女主剧情规划' | '玩家门派' | '任务列表' | '约定列表' | '记忆系统', unknown>;
 
 type ContextSection = {
@@ -98,6 +99,7 @@ const MobileSettingsModal: React.FC<Props> = ({
     onReturnToHome, isHome, requestConfirm
 }) => {
     const tabItems = [
+        { id: 'avg', label: 'AVG 演出设置' },
         { id: 'game', label: '游戏' },
         { id: 'reality', label: '真实' },
         { id: 'tavern_preset', label: '酒馆' },
@@ -132,6 +134,7 @@ const MobileSettingsModal: React.FC<Props> = ({
     );
 
     const renderTabContent = () => {
+        if (activeTab === 'avg' && gameConfig && onSaveGame) return <AvgSettings settings={gameConfig} onSave={onSaveGame} />;
         if (activeTab === 'api') return <ApiSettings settings={apiConfig} onSave={onSaveApi} />;
         if (activeTab === 'image_generation') return <ImageGenerationSettings settings={apiConfig} onSave={onSaveApi} />;
         if (activeTab === 'recall') return <RecallModelSettings settings={apiConfig} onSave={onSaveApi} />;

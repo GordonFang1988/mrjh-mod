@@ -118,6 +118,7 @@ export const 创建规划更新工作流 = (deps: 规划更新工作流依赖) =
         let fandomHeroinePlanBuffer = deps.规范化同人女主剧情规划状态(params.fandomHeroinePlan);
 
         (Array.isArray(params.commands) ? params.commands : []).forEach((cmd) => {
+            if (cmd.action !== 'set' && cmd.action !== 'add' && cmd.action !== 'push' && cmd.action !== 'delete') return;
             const result = applyStateCommand(
                 charBuffer,
                 envBuffer,

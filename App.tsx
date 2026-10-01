@@ -15,6 +15,7 @@ import { 获取图片资源文本地址 } from './utils/imageAssets';
 import { MusicProvider } from './components/features/Music/MusicProvider';
 import { 小说拆分后台调度服务 } from './services/novelDecompositionScheduler';
 import { 开局配置启用同人运行时 } from './prompts/runtime/fandom';
+import { loadAvgPackCatalog } from './services/avg/packStore';
 
 type 可预加载组件<T extends React.ComponentType<any>> = React.LazyExoticComponent<T> & {
     preload?: () => Promise<unknown>;
@@ -87,6 +88,7 @@ const 懒加载边界: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
 const App: React.FC = () => {
     const { state, meta, setters, actions } = useGame();
+    React.useEffect(() => { void loadAvgPackCatalog().catch(() => undefined); }, []);
     const [showCharacter, setShowCharacter] = React.useState(false);
     const [showImageManager, setShowImageManager] = React.useState(false);
     const [showWorldbookManager, setShowWorldbookManager] = React.useState(false);
@@ -815,6 +817,9 @@ const App: React.FC = () => {
                                     onPolishTurn={actions.handlePolishTurn}
                                     visualConfig={state.visualConfig}
                                     socialList={state.社交}
+                                    sceneArchive={meta.sceneImageArchive}
+                                    onAvgImageSelect={actions.setAvgSceneImage}
+                                    onAvgPortraitSelect={actions.setAvgPortraitImage}
                                     playerProfile={playerProfile}
                                     renderCount={state.visualConfig.渲染层数}
                                     suppressAutoScrollToken={meta.chatScrollSuppressToken}

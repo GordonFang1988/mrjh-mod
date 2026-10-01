@@ -115,6 +115,7 @@ ${构建修炼体系附加块('├─ 境界: string')}
 ├─ 是否在场/是否队友/是否主要角色: boolean
 ├─ 好感度: number
 ├─ 关系状态/简介: string
+├─ AVG立绘特征?: { 视觉年龄?:"child"|"teen"|"young"|"middle"|"elder", 身份类别?:string, 江湖形象?:string, 服饰类别?:string, 体态?:string, 身高?:string, 发型?:string, 衣装剪裁?:string, 上身轮廓?:string, 腰臀轮廓?:string, 露肤程度?:string, 发色?:string, 显著特征?:string[] }
 └─ 记忆: Array<{ 内容:string, 时间:string(YYYY:MM:DD:HH:MM) }>
 
 说明：
