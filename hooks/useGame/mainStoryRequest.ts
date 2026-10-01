@@ -16,6 +16,7 @@ import {
 } from './promptRuntime';
 import { 构建剧情风格助手提示词 } from '../../prompts/runtime/storyStyles';
 import { AVG_FULL_PROTOCOL_PROMPT } from '../../services/avg/vocabulary';
+import { buildAvgKnownScenesPrompt } from '../../services/avg/sceneBindings';
 import { 构建真实世界模式提示词 } from '../../prompts/runtime/realWorldMode';
 import { 构建运行时额外提示词 } from '../../prompts/runtime/nsfw';
 import {
@@ -108,6 +109,7 @@ export const 构建主剧情请求参数 = (
         apiConfig: 接口设置结构扩展;
         builtContext: 主剧情系统上下文;
         updatedContextHistory: 聊天记录结构[];
+        avgBindingHistory?: 聊天记录结构[];
         updatedMemSys: 记忆系统结构;
         sendInput: string;
         recallTag?: string;
@@ -118,6 +120,8 @@ export const 构建主剧情请求参数 = (
     }
 ): 主剧情请求构建结果 => {
     const runtimeGameConfig = 规范化游戏设置(params.gameConfig);
+    const avgKnownScenes = runtimeGameConfig.启用AVG演出
+        ? buildAvgKnownScenesPrompt(params.avgBindingHistory || params.updatedContextHistory) : '';
     const tavernPresetModeEnabled = 酒馆预设模式可用(runtimeGameConfig);
     const runtimeGptMode = runtimeGameConfig.启用GPT模式 === true;
     const runtimeCotPseudoEnabled = runtimeGameConfig.启用COT伪装注入 !== false;
@@ -190,7 +194,8 @@ export const 构建主剧情请求参数 = (
                 tavernRuntimeExtraPrompt,
                 disclaimerRequirementPrompt || '',
                 tavernOutputProtocolPrompt,
-                runtimeGameConfig.启用AVG演出 ? AVG_FULL_PROTOCOL_PROMPT : ''
+                runtimeGameConfig.启用AVG演出 ? AVG_FULL_PROTOCOL_PROMPT : '',
+                avgKnownScenes
             ],
             overrideStoryAppendPrompt: novelDecompositionPrompt
         });
@@ -260,6 +265,7 @@ export const 构建主剧情请求参数 = (
         pushEntry('disclaimer_requirement', '免责声明输出要求', '用户', 'user', disclaimerRequirementPrompt || '');
         pushEntry('format_prompt', '输出格式提示词', '系统', 'system', params.builtContext.contextPieces.格式提示词);
         pushEntry('avg_protocol', 'AVG演出镜头协议', '系统', 'system', runtimeGameConfig.启用AVG演出 ? AVG_FULL_PROTOCOL_PROMPT : '');
+        pushEntry('avg_scene_bindings', 'AVG已绑定场景', '系统', 'system', avgKnownScenes);
         pushEntry('cot_core', 'COT提示词', '系统', 'system', params.builtContext.contextPieces.COT提示词);
         if (!runtimeGptMode) {
             pushEntry(

@@ -85,6 +85,7 @@ export interface 聊天记录结构 {
     structuredResponse?: GameResponse; // The parsed object for assistant
     timestamp: number;
     rawJson?: string; // Raw model text for source view/edit
+    avgSceneTrace?: import('./models/avg').AvgSceneTrace;
     gameTime?: string; // Added gameTime
     inputTokens?: number; // Estimated uploaded/input tokens
     responseDurationSec?: number; // Request start -> final reply duration (seconds)

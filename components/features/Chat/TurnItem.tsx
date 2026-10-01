@@ -520,7 +520,7 @@ const TurnItem: React.FC<Props> = ({
             )}
 
             <div className="mt-2 space-y-2">
-                {showAvg ? <AvgStage isLatest={isLatest} logs={displayLogs} presentation={response.avgPresentation} portraitBindings={response.avgPortraitBindings} socialList={socialList} sceneArchive={sceneArchive} onSelectSceneImage={onAvgImageSelect} onSelectPortrait={onAvgPortraitSelect} /> : displayLogs.map((log, idx) => {
+                {showAvg ? <AvgStage turnNumber={turnNumber} isLatest={isLatest} logs={displayLogs} presentation={response.avgPresentation} portraitBindings={response.avgPortraitBindings} socialList={socialList} sceneArchive={sceneArchive} onSelectSceneImage={onAvgImageSelect} onSelectPortrait={onAvgPortraitSelect} /> : displayLogs.map((log, idx) => {
                     const matchedJudgeBlock = 判定日志索引映射[idx] >= 0 ? judgeBlocks[判定日志索引映射[idx]] : undefined;
                     if (log.sender === '旁白') return <NarratorRenderer key={idx} text={log.text} visualConfig={visualConfig} />;
                     if (判定前缀正则.test(log.sender || '')) {

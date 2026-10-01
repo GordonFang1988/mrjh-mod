@@ -6,6 +6,7 @@ import { isGeneralAvgAsset, normalizeAvgTheme } from './identity';
 import { AVG_PRESET_PACK } from './manifest';
 import { getAvgPackCatalog } from './packStore';
 import { readAvgSceneProfile } from './vocabulary';
+import { indexAvgSceneBindings, lookupAvgSceneBinding } from './sceneBindings';
 
 /** Existing project art is an engineering fixture until an art pack is approved. */
 export const ENGINEERING_AVG_SCENES: AvgSceneAsset[] = [
@@ -73,14 +74,16 @@ const score = (wanted: AvgSceneProfile, available: AvgSceneProfile): number => {
     return total;
 };
 
-const resolveAsset = (profile: AvgSceneProfile, placeKey: string, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string): AvgSceneAsset | undefined => {
+/** Matching and diagnostics share the same filters; no prose/location classification occurs here. */
+const sceneCandidatePool = (profile: AvgSceneProfile, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string) => {
     const compatibleInstitution = (asset: AvgSceneAsset) => !profile.场所体系 || !asset.profile.场所体系
         || asset.profile.场所体系 === '通用' || profile.场所体系 === asset.profile.场所体系;
     const compatibleFunction = (asset: AvgSceneAsset) => !profile.场所功能 || !asset.profile.场所功能
         || asset.profile.场所功能 === '通用' || profile.场所功能 === '通用'
         || profile.场所功能 === asset.profile.场所功能;
-    const available = assets.filter(asset => asset.profile.空间 !== '未知'
-        && compatibleInstitution(asset) && compatibleFunction(asset));
+    const known = assets.filter(asset => asset.profile.空间 !== '未知');
+    const institution = known.filter(compatibleInstitution);
+    const available = institution.filter(compatibleFunction);
     const exact = available.filter(asset => asset.profile.空间 === profile.空间);
     const categoryPool = exact.length > 0 ? exact : available.filter(asset => (compatible[profile.空间] || []).includes(asset.profile.空间));
     const exactFunction = profile.场所功能 && profile.场所功能 !== '通用'
@@ -90,6 +93,20 @@ const resolveAsset = (profile: AvgSceneProfile, placeKey: string, assets: AvgSce
     const themePool = themed.length ? themed : functionPool;
     const sameStyle = preferredStyle ? themePool.filter(asset => asset.styleFamily === preferredStyle) : [];
     const pool = sameStyle.length > 0 ? sameStyle : themePool;
+    return { pool, counts: { total: assets.length, knownSpace: known.length,
+        exactSpaceBeforeFilters: known.filter(asset => asset.profile.空间 === profile.空间).length,
+        afterInstitution: institution.length, afterFunction: available.length,
+        exactSpace: exact.length, category: categoryPool.length, afterFunctionPreference: functionPool.length,
+        afterThemePreference: themePool.length, afterStylePreference: pool.length } };
+};
+
+export const inspectAvgSceneCandidates = (profile: AvgSceneProfile, assets: AvgSceneAsset[], theme?: string) => {
+    const { pool, counts } = sceneCandidatePool(profile, assets, undefined, theme);
+    return { counts, candidateIds: pool.slice(0, 12).map(asset => asset.id), candidatesTruncated: pool.length > 12 };
+};
+
+const resolveAsset = (profile: AvgSceneProfile, placeKey: string, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string): AvgSceneAsset | undefined => {
+    const { pool } = sceneCandidatePool(profile, assets, preferredStyle, theme);
     if (pool.length === 0) return undefined;
     const ranked = pool.map(asset => ({ asset, points: score(profile, asset.profile) }));
     const top = Math.max(...ranked.map(item => item.points));
@@ -97,18 +114,18 @@ const resolveAsset = (profile: AvgSceneProfile, placeKey: string, assets: AvgSce
     return ties[hash(placeKey) % ties.length]?.asset;
 };
 
-const previousScenes = (history: 聊天记录结构[]): Map<string, AvgResolvedScene> => {
-    const result = new Map<string, AvgResolvedScene>();
-    for (const item of history) {
-        const presentation = item.structuredResponse?.avgPresentation;
-        const legacyFallback = presentation?.diagnostic === 'invalid-scene-timeline'
-            || (presentation?.diagnostic === 'no-scene-markers' && !item.structuredResponse?.avgSceneHints?.length);
-        for (const scene of presentation?.scenes || []) {
-            if (legacyFallback && !scene.reason.startsWith('manual-')) continue;
-            if (scene.placeKey && !scene.placeKey.startsWith('transient:') && scene.assetId) result.set(scene.placeKey, scene);
-        }
-    }
-    return result;
+/** Diagnostic inspection uses exactly the same identity lookup as playback. */
+export const inspectAvgSceneBindings = (history: 聊天记录结构[], placeKey: string, _currentProfile?: AvgSceneProfile, sceneId?: string) => {
+    const index = indexAvgSceneBindings(history);
+    const { binding, conflict, lookupRule } = lookupAvgSceneBinding(index, placeKey, sceneId);
+    return { lookupPlaceKey: placeKey, lookupSceneId: sceneId, lookupRule, bindingFound: !!binding,
+        binding, reuseAllowedByCurrentResolver: !!binding,
+        blockReason: conflict ? 'conflicting-scene-identity' : !binding ? 'no-exact-place-binding' : undefined,
+        knownBindingCount: index.byId.size,
+        knownBindings: [...index.byId.values()].slice(-100).map(scene => ({ sceneId: scene.sceneId,
+            placeKey: scene.placeKey, placeAliases: scene.placeAliases,
+            label: scene.label, profile: scene.profile, assetId: scene.assetId, version: scene.version, reason: scene.reason })),
+        knownBindingsTruncated: index.byId.size > 100 };
 };
 
 /** Freeze chosen resources onto the turn stored in history. No image generation occurs here. */
@@ -125,7 +142,8 @@ export const buildAvgPresentation = (
         if (!hint?.ref) continue;
         refCounts.set(hint.ref, (refCounts.get(hint.ref) || 0) + 1);
         const profile = readAvgSceneProfile(hint.分类);
-        if (profile) byRef.set(hint.ref, { ...hint, 分类: profile });
+        if (profile || hint.场景ID || hint.地点?.具体地点)
+            byRef.set(hint.ref, { ...hint, 分类: profile || undefined });
     }
     for (const [ref, count] of refCounts) if (count > 1) byRef.delete(ref);
     const multi = uniqueRefs.length > 0;
@@ -133,43 +151,61 @@ export const buildAvgPresentation = (
     // Without markers only a single supplied scene is addressable. Never infer from a place name.
     const singleHint = !multi && byRef.size === 1 ? [...byRef.values()][0] : undefined;
     const chosen: AvgSceneHint[] = multi
-        ? uniqueRefs.map(ref => byRef.get(ref) || { ref, 分类: { 空间: '未知' } })
-        : [{ ref: 'final', 地点: singleHint?.地点 || Object.fromEntries(keyFields.map(key => [key, env[key] || ''])),
-            分类: singleHint?.分类 || { 空间: '未知' } }];
-    const prior = previousScenes(history);
+        ? uniqueRefs.map(ref => byRef.get(ref) || { ref })
+        : [{ ref: 'final', 场景ID: singleHint?.场景ID,
+            地点: singleHint?.地点 || (singleHint?.场景ID || byRef.size > 1 ? undefined : Object.fromEntries(keyFields.map(key => [key, env[key] || '']))),
+            分类: singleHint?.分类 }];
+    const prior = indexAvgSceneBindings(history);
     const venueStyles = new Map<string, string>();
-    for (const [place, binding] of prior) {
+    for (const [place, binding] of prior.byPlace) {
         const style = assets.find(asset => asset.id === binding.assetId)?.styleFamily;
         if (style) venueStyles.set(place.split('/').slice(0, 3).join('/'), style);
     }
-    const scenes = chosen.map((hint, index): AvgResolvedScene => {
+    const scenes: AvgResolvedScene[] = [];
+    let identityConflict = false;
+    chosen.forEach((hint, index) => {
         const location = hint.地点;
-        const placeKey = avgPlaceKey(location) || `transient:${hash(JSON.stringify(hint.分类))}:${index}`;
-        const label = keyFields.map(key => location?.[key]).filter(Boolean).join(' / ') || hint.分类.空间;
-        const overrideId = overrides[placeKey];
-        const previous = prior.get(placeKey);
-        const binding = !overrideId && (hint.分类.空间 !== '未知' || previous?.reason.startsWith('manual-'))
-            ? previous : undefined;
+        const declaredKey = avgPlaceKey(location);
+        const lookup = lookupAvgSceneBinding(prior, declaredKey, hint.场景ID);
+        identityConflict ||= lookup.conflict;
+        const placeKey = declaredKey || lookup.binding?.placeKey || `transient:${hash(JSON.stringify(hint.分类 || {}))}:${index}`;
+        const previous = lookup.binding;
+        const profile = readAvgSceneProfile(hint.分类) || previous?.profile || { 空间: '未知' };
+        const label = keyFields.map(key => location?.[key]).filter(Boolean).join(' / ') || previous?.label || profile.空间;
+        const overrideId = overrides[placeKey] || previous?.placeAliases?.map(key => overrides[key]).find(Boolean);
+        const binding = !overrideId ? previous : undefined;
         const asset = overrideId
             ? assets.find(candidate => candidate.id === overrideId)
             : binding
             ? assets.find(candidate => candidate.id === binding.assetId && candidate.version === binding.version)
-            : resolveAsset(hint.分类, placeKey, assets, venueStyles.get(placeKey.split('/').slice(0, 3).join('/')), theme);
+            : lookup.conflict || profile.空间 === '未知' ? undefined
+            : resolveAsset(profile, placeKey, assets, venueStyles.get(placeKey.split('/').slice(0, 3).join('/')), theme);
         if (asset?.styleFamily) venueStyles.set(placeKey.split('/').slice(0, 3).join('/'), asset.styleFamily);
-        return {
-            ref: hint.ref, placeKey, label, profile: hint.分类,
+        const scene: AvgResolvedScene = {
+            ref: hint.ref, placeKey, label, profile,
+            sceneId: previous?.sceneId || hint.场景ID || (!placeKey.startsWith('transient:') ? `place:${placeKey}` : undefined),
+            placeAliases: placeKey.startsWith('transient:') ? undefined : [...new Set([...(previous?.placeAliases || []), placeKey])],
             assetId: binding?.assetId || asset?.id,
             image: binding?.image || asset?.image,
             version: binding?.version || asset?.version,
             reason: overrideId ? (asset ? 'manual-place-override' : 'manual-neutral')
+                : binding?.reason === 'manual-neutral' ? 'manual-neutral'
                 : binding ? 'existing-binding' : asset ? 'first-match' : 'neutral-background'
         };
+        scenes.push(scene);
+        // Later refs in this same reply can return to the first selected binding too.
+        if (!lookup.conflict && scene.sceneId && (scene.assetId || scene.reason === 'manual-neutral')) {
+            prior.byId.set(scene.sceneId, scene);
+            for (const key of scene.placeAliases || []) prior.byPlace.set(key, scene);
+        }
     });
     return {
         schemaVersion: 1,
         mode: multi ? 'multi' : 'final',
         scenes,
-        diagnostic: multi ? complete ? undefined : 'incomplete-scene-timeline'
-            : singleHint ? undefined : byRef.size > 1 ? 'no-scene-markers' : 'missing-scene-fields'
+        diagnostic: identityConflict ? 'conflicting-scene-identity'
+            : multi ? complete ? undefined : 'incomplete-scene-timeline'
+            : singleHint || scenes[0]?.reason === 'existing-binding' || scenes[0]?.reason === 'manual-neutral' ? undefined
+            : byRef.size > 1 ? 'no-scene-markers' : 'missing-scene-fields'
     };
 };

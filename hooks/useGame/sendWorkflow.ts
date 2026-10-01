@@ -19,6 +19,7 @@ import { 同步剧情小说分解时间校准 } from '../../services/novelDecomp
 import { buildAvgPresentation, sceneAssetsFromArchive } from '../../services/avg/sceneResolver';
 import { resolveAvgPortraits } from '../../services/avg/portraitResolver';
 import { loadAvgPackCatalog } from '../../services/avg/packStore';
+import { captureAvgSceneTrace, snapshotAvgSceneFields } from '../../services/avg/sceneEvidence';
 
 type 回忆检索进度 = {
     phase: 'start' | 'stream' | 'done' | 'error';
@@ -542,6 +543,7 @@ export const 执行主剧情发送工作流 = async (
             apiConfig: currentState.apiConfig,
             builtContext,
             updatedContextHistory,
+            avgBindingHistory: historyBeforeSend,
             updatedMemSys,
             sendInput,
             recallTag,
@@ -621,6 +623,10 @@ export const 执行主剧情发送工作流 = async (
             剧情: deps.深拷贝(currentState.剧情),
             女主剧情规划: deps.深拷贝(currentState.女主剧情规划)
         };
+        const avgSceneTrace = captureAvgSceneTrace(runtimeGameConfig.启用AVG演出 === true, orderedMessages, aiResult.response, 'main', {
+            enableTagRepair: runtimeGameConfig.启用标签修复 !== false,
+            validateTagCompleteness: runtimeGameConfig.启用标签检测完整性 === true
+        });
         let aiData = 按世界演变分流净化响应(aiResult.response, worldEvolutionSplitEnabled).response;
         let displayAiData = aiData;
 
@@ -687,6 +693,7 @@ export const 执行主剧情发送工作流 = async (
             });
         }
 
+        avgSceneTrace.afterPolish = snapshotAvgSceneFields(displayAiData);
         let responseForExecution: GameResponse = {
             ...aiData,
             tavern_commands: Array.isArray(aiData.tavern_commands) ? [...aiData.tavern_commands] : []
@@ -802,6 +809,7 @@ export const 执行主剧情发送工作流 = async (
             }
         }
 
+        avgSceneTrace.afterVariableGeneration = snapshotAvgSceneFields(displayAiData);
         let worldEvolutionResult: 世界演变执行结果 | null = null;
         const 变量生成后命令数 = Array.isArray(responseForExecution.tavern_commands) ? responseForExecution.tavern_commands.length : 0;
         if (worldEvolutionSplitEnabled) {
@@ -990,6 +998,7 @@ export const 执行主剧情发送工作流 = async (
             ),
             avgPortraitBindings: resolveAvgPortraits(finalDisplayResponse.logs || [], finalState.社交, historyBeforeSend, undefined, currentState.gameConfig?.AVG主题)
         };
+        avgSceneTrace.final = snapshotAvgSceneFields(finalDisplayResponse);
         const immediateEntry = 构建即时记忆条目(nextGameTime, sendInput, finalDisplayResponse);
         const shortEntry = 构建短期记忆条目(nextGameTime, finalDisplayResponse);
         const aiTurnTimestamp = Date.now();
@@ -1013,6 +1022,7 @@ export const 执行主剧情发送工作流 = async (
             content: 'Structured Response',
             structuredResponse: finalDisplayResponse,
             rawJson: rawAiText,
+            avgSceneTrace,
             timestamp: aiTurnTimestamp,
             gameTime: nextGameTime,
             inputTokens,

@@ -44,11 +44,19 @@ export const restoreStructuredAvgScenes = (
     response: GameResponse, history: 聊天记录结构[], assets: AvgSceneAsset[], theme?: string
 ) => {
     const presentation = response.avgPresentation;
-    if (!presentation || !['invalid-scene-timeline', 'no-scene-markers'].includes(presentation.diagnostic || '')
+    if (!presentation || !['invalid-scene-timeline', 'no-scene-markers', 'missing-scene-fields', 'incomplete-scene-timeline'].includes(presentation.diagnostic || '')
         || presentation.scenes.some(scene => scene.reason.startsWith('manual-'))) return presentation;
     const parts = (presentation.scenes.at(-1)?.placeKey || '').split('/');
     const env = { 大地点: parts[0] || '', 中地点: parts[1] || '', 小地点: parts[2] || '', 具体地点: parts[3] || '' };
     const restored = buildAvgPresentation(response.logs || [], response.avgSceneHints, env as any, history, assets, {}, theme);
+    // A fieldless legacy turn is repairable only when an exact saved identity is available.
+    if (['missing-scene-fields', 'incomplete-scene-timeline'].includes(presentation.diagnostic || '')) {
+        if (!restored.scenes.some(scene => scene.reason === 'existing-binding' || scene.reason === 'manual-neutral')) return presentation;
+        restored.scenes = restored.scenes.map(scene => {
+            const saved = presentation.scenes.find(item => item.ref === scene.ref);
+            return saved?.assetId || saved?.image ? saved! : scene;
+        });
+    }
     return JSON.stringify(restored) === JSON.stringify(presentation) ? presentation : restored;
 };
 
@@ -111,9 +119,10 @@ export const recoverMissingAvgArt = async (
                 }
                 const parts = scene.placeKey.split('/');
                 const env = {大地点:parts[0] || '',中地点:parts[1] || '',小地点:parts[2] || '',具体地点:parts[3] || ''};
-                const hint = {ref:'final',地点:env,分类:scene.profile};
+                const hint = {ref:'final',场景ID:scene.sceneId,地点:env,分类:scene.profile};
                 const replacement = buildAvgPresentation([], [hint], env as any, repairedHistory, sceneAssets, {}, theme).scenes[0];
-                scenes.push({...replacement,ref:scene.ref,placeKey:scene.placeKey,label:scene.label});
+                scenes.push({...replacement,sceneId:scene.sceneId || replacement.sceneId,
+                    placeAliases:scene.placeAliases || replacement.placeAliases,ref:scene.ref,placeKey:scene.placeKey,label:scene.label});
                 changed = true; repaired += 1;
             }
             if (changed) presentation = {...presentation,scenes};

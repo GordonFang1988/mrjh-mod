@@ -14,6 +14,7 @@ import './AvgStage.css';
 import { avgDisplayStyle, useAvgDisplay } from '../../../services/avg/displayPreferences';
 
 interface Props {
+    turnNumber?: number;
     isLatest?: boolean;
     logs: GameLog[];
     presentation?: AvgPresentation;
@@ -54,7 +55,7 @@ const useAvgPackImage = (source?: string): string => {
     return loaded.source === source ? loaded.url : '';
 };
 
-const AvgStage: React.FC<Props> = ({ isLatest = false, logs, presentation, portraitBindings, socialList, sceneArchive, onSelectSceneImage, onSelectPortrait }) => {
+const AvgStage: React.FC<Props> = ({ turnNumber, isLatest = false, logs, presentation, portraitBindings, socialList, sceneArchive, onSelectSceneImage, onSelectPortrait }) => {
     const displayPreferences = useAvgDisplay();
     const [index, setIndex] = useState(0);
     const [failedImage, setFailedImage] = useState('');
@@ -135,8 +136,11 @@ const AvgStage: React.FC<Props> = ({ isLatest = false, logs, presentation, portr
             stageRef.current?.focus(); move(1);
         }}
         aria-label="AVG 演出舞台，左右方向键翻页"
+        data-avg-turn-number={turnNumber} data-avg-step={safeIndex + 1} data-avg-log-index={logs.indexOf(step) + 1}
+        data-avg-scene-ref={sceneRef || ''} data-avg-place-key={scene?.placeKey || ''} data-avg-asset-id={scene?.assetId || ''}
+        data-avg-image-state={resolvedImage && resolvedImage === failedImage ? 'failed' : image ? 'resolved' : scene?.image ? 'pending' : 'no-image'}
         className={`${pageImmersive ? 'avg-immersive-stage fixed left-0 right-0 z-[100] rounded-none' : 'relative w-full aspect-[16/10] min-h-[280px] rounded-xl'} overflow-hidden border border-amber-500/40 bg-slate-900 text-white outline-none focus-visible:ring-2 focus-visible:ring-amber-400 [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:rounded-none`}>
-        {image && <img key={image} src={image} alt={scene?.label || '场景背景'} onError={() => setFailedImage(image)} className="absolute inset-0 h-full w-full object-cover" />}
+        {image && <img data-avg-scene-image="true" key={image} src={image} alt={scene?.label || '场景背景'} onError={() => setFailedImage(image)} className="absolute inset-0 h-full w-full object-cover" />}
         {!image && <div className="absolute inset-0 bg-gradient-to-br from-slate-700 via-slate-900 to-black" />}
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/30" />
         <div className="absolute z-10 left-3 top-3 right-3 flex items-start justify-between gap-3 text-xs">

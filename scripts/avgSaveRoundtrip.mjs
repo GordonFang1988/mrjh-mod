@@ -7,13 +7,14 @@ const sourceImages = new Map([
     ['wuxia-asset://portrait', 'data:image/png;base64,AQ==']
 ]);
 const restoredImages = new Map();
+const sceneTrace = {schemaVersion:1,appVersion:'1.0.1',request:{source:'main',enabledAtRequest:true,protocolIncluded:true,protocolVersion:'avg-v3',protocolMessageIndexes:[1],parserOptions:{enableTagRepair:true,validateTagCompleteness:false}},parsed:{hintCount:1,hintRefs:['s1'],logCount:1,markedLogCount:1,sceneRefs:['s1']}};
 globalThis.__avgSaveFixture = {
     saves: [{
         类型: '手动', 时间戳: 1, 角色数据: { 姓名: '测试' },
-        历史记录: [{ role: 'assistant', content: '', timestamp: 1, structuredResponse: {
+        历史记录: [{ role: 'assistant', content: '', timestamp: 1, avgSceneTrace: sceneTrace, rawJson:'<正文><镜头 ref="s1"/>【旁白】走吧。</正文>', structuredResponse: {
             logs: [{ sender: '林姑娘', text: '走吧。' }],
             avgPresentation: { schemaVersion: 1, mode: 'final', scenes: [
-                { ref: 's1', placeKey: '江南/客栈', label: '客栈', profile: { 空间: '客栈大堂' }, image: 'wuxia-asset://scene', reason: 'selected' },
+                { ref: 's1', sceneId:'inn:lobby',placeAliases:['江南/客栈','江南/客栈大堂'],placeKey: '江南/客栈', label: '客栈', profile: { 空间: '客栈大堂' }, image: 'wuxia-asset://scene', reason: 'selected' },
                 { ref: 's2', placeKey: '江南/渡口', label: '渡口', profile: { 空间: '渡口' }, assetId: 'wuxia_fixture@1.0.0:huashan_test', image: 'avgpack://wuxia_fixture@1.0.0/scenes/huashan.webp', reason: 'preset' }
             ] },
             avgPortraitBindings: { 林姑娘: { npcId: 'npc-1', assetId: 'archive:1', image: 'wuxia-asset://portrait', reason: 'selected-archive' } }
@@ -61,8 +62,12 @@ assert.ok(exportedHistory.avgPortraitBindings.林姑娘.image.startsWith('图片
 assert.equal(globalThis.__avgSaveFixture.saves[0].历史记录[0].structuredResponse.avgPresentation.scenes[0].image, 'wuxia-asset://scene');
 
 const imported = await 解析ZIP存档文件(zip);
+assert.deepEqual(imported.saves[0].历史记录[0].avgSceneTrace, sceneTrace);
+assert.equal(imported.saves[0].历史记录[0].rawJson, globalThis.__avgSaveFixture.saves[0].历史记录[0].rawJson);
 const response = imported.saves[0].历史记录[0].structuredResponse;
 assert.equal(response.avgPresentation.scenes[0].placeKey, '江南/客栈');
+assert.equal(response.avgPresentation.scenes[0].sceneId,'inn:lobby');
+assert.deepEqual(response.avgPresentation.scenes[0].placeAliases,['江南/客栈','江南/客栈大堂']);
 assert.equal(response.avgPresentation.scenes[1].image, 'avgpack://wuxia_fixture@1.0.0/scenes/huashan.webp');
 assert.equal(response.avgPresentation.scenes[1].assetId, 'wuxia_fixture@1.0.0:huashan_test');
 assert.equal(response.avgPortraitBindings.林姑娘.npcId, 'npc-1');

@@ -18,8 +18,11 @@ export interface AvgSceneProfile {
 
 export interface AvgSceneHint {
     ref: string;
+    /** Model-declared persistent identity; ref itself remains turn-local. */
+    场景ID?: string;
     地点?: Record<string, string>;
-    分类: AvgSceneProfile;
+    /** Required for a new scene; omitted when referencing an existing binding. */
+    分类?: AvgSceneProfile;
 }
 
 export interface AvgSceneAsset {
@@ -43,6 +46,9 @@ export interface AvgSceneBinding {
 
 export interface AvgResolvedScene {
     ref: string;
+    sceneId?: string;
+    /** Exact location keys explicitly linked by the model through sceneId. */
+    placeAliases?: string[];
     placeKey: string;
     label: string;
     profile: AvgSceneProfile;
@@ -58,6 +64,34 @@ export interface AvgPresentation {
     scenes: AvgResolvedScene[];
     /** An explicit failure is retained for diagnostics; the story remains playable. */
     diagnostic?: string;
+}
+
+export interface AvgSceneFieldSnapshot {
+    hintCount: number;
+    hintRefs: string[];
+    logCount: number;
+    markedLogCount: number;
+    sceneRefs: string[];
+}
+
+/** Minimal request/processing evidence; no prompts, credentials or image bytes. */
+export interface AvgSceneTrace {
+    schemaVersion: 1;
+    appVersion: string;
+    request: {
+        source: 'main' | 'opening';
+        enabledAtRequest: boolean;
+        protocolIncluded: boolean;
+        protocolVersion: string;
+        protocolMessageIndexes: number[];
+        bindingRegistryIncluded?: boolean;
+        bindingRegistrySceneCount?: number;
+        parserOptions: { enableTagRepair: boolean; validateTagCompleteness: boolean };
+    };
+    parsed: AvgSceneFieldSnapshot;
+    afterPolish?: AvgSceneFieldSnapshot;
+    afterVariableGeneration?: AvgSceneFieldSnapshot;
+    final?: AvgSceneFieldSnapshot;
 }
 
 export type AvgVisualAge = 'child' | 'teen' | 'young' | 'middle' | 'elder';

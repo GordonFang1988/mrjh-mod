@@ -715,7 +715,7 @@ const App: React.FC = () => {
             <div className="h-screen w-screen overflow-hidden bg-ink-black relative flex flex-col p-3 transition-colors duration-500" style={uiTextStyleVars}>
                 {fontFaceStyleText && <style>{fontFaceStyleText}</style>}
                 {showChangelog && <ChangelogModal onClose={closeChangelog} />}
-                {showDiagnostic && <DiagnosticExport history={state.历史记录} social={state.社交} environment={state.环境} theme={state.gameConfig.AVG主题} archive={meta.sceneImageArchive} onClose={() => setShowDiagnostic(false)} />}
+                {showDiagnostic && <DiagnosticExport history={state.历史记录} social={state.社交} environment={state.环境} theme={state.gameConfig.AVG主题} avgEnabled={state.gameConfig.启用AVG演出 === true} archive={meta.sceneImageArchive} onClose={() => setShowDiagnostic(false)} />}
 
             
             {/* View Switching */}

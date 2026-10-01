@@ -4,6 +4,7 @@ import { AVG_FULL_PROTOCOL_PROMPT } from '../../services/avg/vocabulary';
 import { buildAvgPresentation, sceneAssetsFromArchive } from '../../services/avg/sceneResolver';
 import { resolveAvgPortraits } from '../../services/avg/portraitResolver';
 import { loadAvgPackCatalog } from '../../services/avg/packStore';
+import { captureAvgSceneTrace, snapshotAvgSceneFields } from '../../services/avg/sceneEvidence';
 import type {
     GameResponse,
     OpeningConfig,
@@ -766,6 +767,10 @@ export const 执行开场剧情生成工作流 = async (
             }
         });
         let aiData = aiResult.response;
+        const avgSceneTrace = captureAvgSceneTrace(openingGameConfig.启用AVG演出 === true, openingOrderedMessages, aiData, 'opening', {
+            enableTagRepair: openingGameConfig.启用标签修复 !== false,
+            validateTagCompleteness: openingGameConfig.启用标签检测完整性 === true
+        });
         if (openingStreamHeartbeat) clearInterval(openingStreamHeartbeat);
 
         const commandBaseState = options?.命令基态 || {
@@ -1306,11 +1311,13 @@ export const 执行开场剧情生成工作流 = async (
         );
         deps.应用并同步记忆系统(openingMemoryAfterWrite);
 
+        avgSceneTrace.final = snapshotAvgSceneFields(displayAiData);
         const newAiMsg: 聊天记录结构 = {
             role: 'assistant',
             content: 'Opening Story',
             structuredResponse: displayAiData,
             rawJson: deps.获取原始AI消息(aiResult.rawText),
+            avgSceneTrace,
             timestamp: openingAiTimestamp,
             gameTime: openingTime,
             inputTokens: openingInputTokens,

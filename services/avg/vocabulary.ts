@@ -100,11 +100,14 @@ export const normalizeAvgHints = (raw: unknown): AvgSceneHint[] => {
         const ref = typeof scene.ref === 'string' ? scene.ref.trim() : '';
         if (ref) refCounts.set(ref, (refCounts.get(ref) || 0) + 1);
         const profile = readAvgSceneProfile(scene.分类);
-        if (!ref || !profile) continue;
+        const sceneId = typeof scene.场景ID === 'string' ? scene.场景ID.trim().slice(0, 500) : undefined;
         const location = scene.地点 && typeof scene.地点 === 'object'
             ? Object.fromEntries(Object.entries(scene.地点).filter(([, value]) => typeof value === 'string' && value.trim()).map(([key, value]) => [key, String(value).trim().slice(0, 100)]))
             : undefined;
-        result.push({ ref, 地点: location, 分类: profile });
+        // An exact identity/location can refer to a previously classified scene.
+        // New locations without classification remain neutral in the resolver.
+        if (!ref || (!profile && !sceneId && !location?.具体地点)) continue;
+        result.push({ ref, 场景ID: sceneId || undefined, 地点: location, 分类: profile || undefined });
     }
     // Duplicate definitions cannot be addressed unambiguously; other refs remain usable.
     return result.filter(scene => refCounts.get(scene.ref) === 1);
@@ -115,4 +118,5 @@ export const AVG_STORY_PROTOCOL_PROMPT = `【AVG演出协议 ${AVG_VOCABULARY_VE
 
 export const AVG_VENUE_PROTOCOL_PROMPT = `【场所用途补充】在<演出场景>每个分类里，场所用途已知时补“场所功能”，可见空间大小明确时补“空间规模”。场所功能只选：${AVG_VENUE_FUNCTION.join('、')}。空间规模只选：${AVG_SCENE_SCALE.join('、')}。尤其是院落、厨房、书房、库房、厢房等通用空间，应区分它属于谁、用来做什么。例如民居小院：{\"空间\":\"院落\",\"场所体系\":\"宅院\",\"场所功能\":\"民居\",\"空间规模\":\"狭小\"}；衙门院落：场所体系为官署、场所功能为衙门；铁匠铺后院：场所功能为铁匠铺。破落住家仍是民居，以装潢档次“简陋”和完好程度“破败”表示可见状态。场所名字本身不能替代空间；不知道用途或规模时省略，不要编造。`;
 
-export const AVG_FULL_PROTOCOL_PROMPT = `${AVG_STORY_PROTOCOL_PROMPT}\n${AVG_VENUE_PROTOCOL_PROMPT}\n${AVG_PORTRAIT_ARCHIVE_PROMPT}`;
+export const AVG_SCENE_BINDING_PROTOCOL_PROMPT = `【AVG场景持续绑定】ref只是本回合的镜头引用，不是跨回合身份。首次出现的新空间必须提供地点和分类；可提供稳定的“场景ID”。客户端会固定该空间第一次选中的背景。已有空间可输出{"ref":"s1","场景ID":"已绑定列表中的ID","地点":{"大地点":"江南","中地点":"苏州","小地点":"悦来客栈","具体地点":"大堂"}}，不必重复分类。ID必须引用实际相同的空间；同名房间、不同建筑、街道和室内不可共用ID。名称写法变化由你通过同一ID明确关联；不提供ID时，客户端只按完整地点精确复用。每回合仍须输出镜头标记和对应的演出场景结构。`;
+export const AVG_FULL_PROTOCOL_PROMPT = `${AVG_STORY_PROTOCOL_PROMPT}\n${AVG_VENUE_PROTOCOL_PROMPT}\n${AVG_SCENE_BINDING_PROTOCOL_PROMPT}\n${AVG_PORTRAIT_ARCHIVE_PROMPT}`;
