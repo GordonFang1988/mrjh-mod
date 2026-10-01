@@ -118,8 +118,7 @@ export const recoverMissingAvgArt = async (
         if (presentation) {
             const scenes = [];
             for (const scene of presentation.scenes) {
-                const recoverNeutral = !scene.assetId && !scene.image && scene.reason === 'neutral-background'
-                    && scene.profile.空间 !== '未知';
+                const recoverNeutral = !scene.assetId && !scene.image && scene.reason === 'neutral-background';
                 if (!recoverNeutral && !await imageMissing(scene.image)) { scenes.push(scene); continue; }
                 const exact = findUniqueLegacyAvgAsset(scene.assetId, sceneAssets);
                 if (exact && await imageAvailable(exact.image)) {

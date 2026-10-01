@@ -3,6 +3,18 @@ export interface ReleaseNoteUpdate {
 }
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
+    id: '2026-10-02', date: '2026年10月2日', updates: [{
+        id: '2026-10-02-v1.0.7', time: '00:49', version: 'v1.0.7',
+        title: '修复缺少场景分类时的空白背景',
+        summary: '模型漏场景字段时，可根据明确的具体地点选择相近素材，读档也可恢复此前的空白背景。',
+        items: [
+            '缺少空间分类时，先搜索相应房间类型，再结合场所用途和素材标签评分；同分选择保持稳定。',
+            '已有模型分类、冻结背景与手工选择继续优先，近似选图依据单独保存在诊断中。',
+            '读档可恢复具有明确具体地点的旧空白回合，确认本地图片可读取后才应用恢复，不修改正文或游戏命令。',
+            '用后院柴房案例、完整图库、旧回合恢复及九段实际播放验证；缺少镜头映射的多场景回合仍保持各镜头独立。'
+        ]
+    }]
+}, {
     id: '2026-10-01', date: '2026年10月1日', updates: [{
         id: '2026-10-01-v1.0.6', time: '23:52', version: 'v1.0.6',
         title: '修复 AVG 开局协议漏发',

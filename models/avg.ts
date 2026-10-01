@@ -56,6 +56,8 @@ export interface AvgResolvedScene {
     image?: string;
     version?: number;
     reason: string;
+    /** Approximate art search evidence; profile remains the original model data. */
+    fallback?: { source: 'location'; term: string; matchingProfile: AvgSceneProfile };
 }
 
 export interface AvgPresentation {

@@ -8,6 +8,7 @@ import { getAvgPackCatalog } from './packStore';
 import { readAvgSceneProfile } from './vocabulary';
 import { indexAvgSceneBindings, lookupAvgSceneBinding } from './sceneBindings';
 import { avgCompatibleSpaces, avgRelatedSceneFunctions, avgRelatedSceneFunctionDistance, avgUnspecifiedField } from './sceneCompatibility';
+import { avgLocationFallback, avgLocationArtScore } from './sceneFallback';
 
 /** Existing project art is an engineering fixture until an art pack is approved. */
 export const ENGINEERING_AVG_SCENES: AvgSceneAsset[] = [
@@ -67,26 +68,32 @@ const score = (wanted: AvgSceneProfile, available: AvgSceneProfile): number => {
     return total;
 };
 
-/** Matching and diagnostics share the same filters; no prose/location classification occurs here. */
-const sceneCandidatePool = (profile: AvgSceneProfile, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string) => {
+/** Matching and diagnostics share filters and the explicit missing-field fallback. */
+const sceneCandidatePool = (requested: AvgSceneProfile, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string, placeKey?: string) => {
+    const fallback = avgLocationFallback(requested, placeKey);
+    const profile = fallback?.matchingProfile || requested;
+    // A venue name is weak evidence in a missing-field fallback. It must not
+    // exclude a closer storage-room image merely because it belongs to a home.
+    const functionProfile = fallback && avgUnspecifiedField(requested.场所功能)
+        ? { ...profile, 场所功能: undefined } : profile;
     const compatibleInstitution = (asset: AvgSceneAsset) => avgUnspecifiedField(profile.场所体系) || avgUnspecifiedField(asset.profile.场所体系)
         || profile.场所体系 === asset.profile.场所体系;
-    const directFunction = (asset: AvgSceneAsset) => avgUnspecifiedField(profile.场所功能) || avgUnspecifiedField(asset.profile.场所功能)
-        || profile.场所功能 === asset.profile.场所功能;
-    const relatedFunction = (asset: AvgSceneAsset) => avgRelatedSceneFunctions(profile.空间, profile.场所功能, asset.profile.空间, asset.profile.场所功能);
+    const directFunction = (asset: AvgSceneAsset) => avgUnspecifiedField(functionProfile.场所功能) || avgUnspecifiedField(asset.profile.场所功能)
+        || functionProfile.场所功能 === asset.profile.场所功能;
+    const relatedFunction = (asset: AvgSceneAsset) => avgRelatedSceneFunctions(profile.空间, functionProfile.场所功能, asset.profile.空间, asset.profile.场所功能);
     const alternatives = avgCompatibleSpaces(profile.空间);
     const matchesSpace = (asset: AvgSceneAsset) => asset.profile.空间 === profile.空间
         || alternatives.includes(asset.profile.空间);
-    const known = assets.filter(asset => asset.profile.空间 !== '未知');
+    const known = assets.filter(asset => !!asset.image && !avgUnspecifiedField(asset.profile.空间));
     const institution = known.filter(compatibleInstitution);
     const available = institution.filter(asset => directFunction(asset) || relatedFunction(asset));
     const exact = available.filter(asset => asset.profile.空间 === profile.空间);
     const categoryPool = available.filter(matchesSpace);
-    const exactFunction = !avgUnspecifiedField(profile.场所功能)
-        ? categoryPool.filter(asset => asset.profile.场所功能 === profile.场所功能) : [];
+    const exactFunction = !avgUnspecifiedField(functionProfile.场所功能)
+        ? categoryPool.filter(asset => asset.profile.场所功能 === functionProfile.场所功能) : [];
     const direct = categoryPool.filter(directFunction);
     const related = categoryPool.map(asset => ({ asset,
-        distance: avgRelatedSceneFunctionDistance(profile.空间, profile.场所功能, asset.profile.空间, asset.profile.场所功能) }));
+        distance: avgRelatedSceneFunctionDistance(profile.空间, functionProfile.场所功能, asset.profile.空间, asset.profile.场所功能) }));
     const closestDistance = related.length ? Math.min(...related.map(item => item.distance)) : Infinity;
     const closest = related.filter(item => Number.isFinite(item.distance) && item.distance === closestDistance).map(item => item.asset);
     // Search related spaces before relaxing the function. An unrelated exact-space
@@ -96,7 +103,11 @@ const sceneCandidatePool = (profile: AvgSceneProfile, assets: AvgSceneAsset[], p
     const spacePool = sameSpace.length > 0 ? sameSpace : functionPool;
     // Theme/style are preferences within the best metadata match, never reasons
     // to discard a better region, condition or scale supplied by the model.
-    const ranked = spacePool.map(asset => ({ asset, points: score(profile, asset.profile) }));
+    const venuePreference = (asset: AvgSceneAsset) => avgUnspecifiedField(profile.场所功能) || avgUnspecifiedField(asset.profile.场所功能)
+        ? 0 : profile.场所功能 === asset.profile.场所功能 ? 2 : -6;
+    const candidateScore = (asset: AvgSceneAsset) => score(functionProfile, asset.profile)
+        + (fallback ? avgLocationArtScore(placeKey, asset) + venuePreference(asset) : 0);
+    const ranked = spacePool.map(asset => ({ asset, points: candidateScore(asset) }));
     const top = ranked.length ? Math.max(...ranked.map(item => item.points)) : 0;
     const bestPool = ranked.filter(item => item.points === top).map(item => item.asset);
     const themed = normalizeAvgTheme(theme) ? bestPool.filter(asset => asset.themeId === normalizeAvgTheme(theme)) : [];
@@ -107,7 +118,7 @@ const sceneCandidatePool = (profile: AvgSceneProfile, assets: AvgSceneAsset[], p
     const spacesAfterInstitution = institution.filter(matchesSpace);
     const failureStage = !spacesBefore.length ? 'space' : !spacesAfterInstitution.length ? 'institution'
         : !categoryPool.length ? 'function' : undefined;
-    return { pool, failureStage, spacesBefore, spacesAfterInstitution,
+    return { pool, failureStage, spacesBefore, spacesAfterInstitution, fallback, candidateScore,
         selection: { allowedSpaces: [profile.空间, ...alternatives],
             functionTier: !functionPool.length ? 'none' : exactFunction.length ? 'exact' : direct.length ? 'direct-or-general' : 'related-function',
             spaceTier: !spacePool.length ? 'none' : sameSpace.length ? 'exact' : 'compatible' },
@@ -123,19 +134,19 @@ const sceneCandidatePool = (profile: AvgSceneProfile, assets: AvgSceneAsset[], p
         afterThemePreference: themePool.length, afterStylePreference: pool.length } };
 };
 
-export const inspectAvgSceneCandidates = (profile: AvgSceneProfile, assets: AvgSceneAsset[], theme?: string) => {
-    const { pool, counts, selection, failureStage, spacesBefore, spacesAfterInstitution } = sceneCandidatePool(profile, assets, undefined, theme);
+export const inspectAvgSceneCandidates = (profile: AvgSceneProfile, assets: AvgSceneAsset[], theme?: string, placeKey?: string) => {
+    const { pool, counts, selection, failureStage, spacesBefore, spacesAfterInstitution, fallback, candidateScore } = sceneCandidatePool(profile, assets, undefined, theme, placeKey);
     const rejected = failureStage === 'institution' ? spacesBefore : failureStage === 'function' ? spacesAfterInstitution : [];
-    return { counts, selection, candidateIds: pool.slice(0, 12).map(asset => asset.id), candidatesTruncated: pool.length > 12,
+    return { counts, selection, fallback, candidateIds: pool.slice(0, 12).map(asset => asset.id), candidatesTruncated: pool.length > 12,
         candidates: pool.slice(0, 12).map(asset => ({ id: asset.id, profile: asset.profile,
-            profileScore: score(profile, asset.profile), themeId: asset.themeId, styleFamily: asset.styleFamily })),
+            profileScore: score(profile, asset.profile), matchScore: candidateScore(asset), themeId: asset.themeId, styleFamily: asset.styleFamily })),
         failure: failureStage ? { stage: failureStage, requested: profile,
             rejectedCandidates: rejected.slice(0, 12).map(asset => ({ id: asset.id, profile: asset.profile })),
             rejectedCandidatesTruncated: rejected.length > 12 } : null };
 };
 
 const resolveAsset = (profile: AvgSceneProfile, placeKey: string, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string): AvgSceneAsset | undefined => {
-    const { pool } = sceneCandidatePool(profile, assets, preferredStyle, theme);
+    const { pool } = sceneCandidatePool(profile, assets, preferredStyle, theme, placeKey);
     if (pool.length === 0) return undefined;
     const ties = [...pool].sort((a, b) => a.id.localeCompare(b.id));
     return ties[hash(placeKey) % ties.length];
@@ -175,7 +186,8 @@ export const buildAvgPresentation = (
     for (const [ref, count] of refCounts) if (count > 1) byRef.delete(ref);
     const multi = uniqueRefs.length > 0;
     const complete = multi && logs.every(log => !!log.avgSceneRef && byRef.has(log.avgSceneRef));
-    // Without markers only a single supplied scene is addressable. Never infer from a place name.
+    // Without markers only a single supplied scene is addressable. Missing ref
+    // mappings cannot borrow the final game location for an earlier camera.
     const singleHint = !multi && byRef.size === 1 ? [...byRef.values()][0] : undefined;
     const chosen: AvgSceneHint[] = multi
         ? uniqueRefs.map(ref => byRef.get(ref) || { ref })
@@ -207,7 +219,7 @@ export const buildAvgPresentation = (
             ? assets.find(candidate => candidate.id === overrideId)
             : binding
             ? assets.find(candidate => candidate.id === binding.assetId && candidate.version === binding.version)
-            : lookup.conflict || profile.空间 === '未知' ? undefined
+            : lookup.conflict ? undefined
             : resolveAsset(profile, placeKey, assets, venueStyles.get(placeKey.split('/').slice(0, 3).join('/')), theme);
         if (asset?.styleFamily) venueStyles.set(placeKey.split('/').slice(0, 3).join('/'), asset.styleFamily);
         const scene: AvgResolvedScene = {
@@ -219,7 +231,8 @@ export const buildAvgPresentation = (
             version: binding?.version || asset?.version,
             reason: overrideId ? (asset ? 'manual-place-override' : 'manual-neutral')
                 : binding?.reason === 'manual-neutral' ? 'manual-neutral'
-                : binding ? 'existing-binding' : asset ? 'first-match' : 'neutral-background'
+                : binding ? 'existing-binding' : asset ? (avgLocationFallback(profile, placeKey) ? 'location-fallback' : 'first-match') : 'neutral-background',
+            fallback: binding?.fallback || (!overrideId && asset ? avgLocationFallback(profile, placeKey) : undefined)
         };
         scenes.push(scene);
         // Later refs in this same reply can return to the first selected binding too.
