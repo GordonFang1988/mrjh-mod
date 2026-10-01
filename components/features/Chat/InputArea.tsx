@@ -397,7 +397,9 @@ const InputArea: React.FC<Props> = ({
         { id: 'world', label: '动态世界', progress: effectiveWorldEvolutionProgress },
         { id: 'planning', label: '规划分析', progress: effectivePlanningProgress }
     ];
-    const queueVisible = pipelineStages.some((stage) => Boolean(stage.progress)) || (immersive.active && busy);
+    const queueVisible = immersive.active
+        ? busy || pipelineStages.some((stage) => stage.progress?.phase === 'start' || stage.progress?.phase === 'error')
+        : pipelineStages.some((stage) => Boolean(stage.progress));
     const historyStages = pipelineStages.filter((stage) => {
         const commandTexts = (stage.progress as { commandTexts?: string[] } | null)?.commandTexts;
         return Array.isArray(commandTexts) && commandTexts.length > 0;
