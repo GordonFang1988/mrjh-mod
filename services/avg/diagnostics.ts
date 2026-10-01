@@ -54,7 +54,7 @@ export const buildAvgDiagnostic = async (input: {
             selectedAssetInCatalog: !!asset,
             selectedAsset: asset ? { id: asset.id, version: asset.version, profile: asset.profile,
                 themeId: asset.themeId, styleFamily: asset.styleFamily } : undefined,
-            matching: inspectAvgSceneCandidates(scene.profile, sceneAssets, theme, scene.placeKey) };
+            matching: inspectAvgSceneCandidates(scene.profile, sceneAssets, theme, scene.placeKey, scene.fallback?.contextRegion) };
     };
     const scenes = await Promise.all((latest?.avgPresentation?.scenes || []).map(describeScene));
     const inspectTurnBinding = (turn: 聊天记录结构 | undefined, scene: AvgResolvedScene | undefined) => {

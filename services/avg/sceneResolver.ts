@@ -69,8 +69,8 @@ const score = (wanted: AvgSceneProfile, available: AvgSceneProfile): number => {
 };
 
 /** Matching and diagnostics share filters and the explicit missing-field fallback. */
-const sceneCandidatePool = (requested: AvgSceneProfile, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string, placeKey?: string) => {
-    const fallback = avgLocationFallback(requested, placeKey);
+const sceneCandidatePool = (requested: AvgSceneProfile, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string, placeKey?: string, contextRegion?: string) => {
+    let fallback = avgLocationFallback(requested, placeKey, contextRegion);
     const profile = fallback?.matchingProfile || requested;
     // A venue name is weak evidence in a missing-field fallback. It must not
     // exclude a closer storage-room image merely because it belongs to a home.
@@ -82,13 +82,17 @@ const sceneCandidatePool = (requested: AvgSceneProfile, assets: AvgSceneAsset[],
         || functionProfile.场所功能 === asset.profile.场所功能;
     const relatedFunction = (asset: AvgSceneAsset) => avgRelatedSceneFunctions(profile.空间, functionProfile.场所功能, asset.profile.空间, asset.profile.场所功能);
     const alternatives = avgCompatibleSpaces(profile.空间);
-    const matchesSpace = (asset: AvgSceneAsset) => asset.profile.空间 === profile.空间
+    const broad = !!fallback && avgUnspecifiedField(profile.空间);
+    const matchesSpace = (asset: AvgSceneAsset) => broad || asset.profile.空间 === profile.空间
         || alternatives.includes(asset.profile.空间);
     const known = assets.filter(asset => !!asset.image && !avgUnspecifiedField(asset.profile.空间));
     const institution = known.filter(compatibleInstitution);
     const available = institution.filter(asset => directFunction(asset) || relatedFunction(asset));
     const exact = available.filter(asset => asset.profile.空间 === profile.空间);
-    const categoryPool = available.filter(matchesSpace);
+    const strictCategory = available.filter(matchesSpace);
+    const nearest = !!fallback && (!strictCategory.length || broad);
+    const categoryPool = fallback && !strictCategory.length ? known : strictCategory;
+    if (fallback && nearest) fallback = { ...fallback, tier: 'nearest-catalog' };
     const exactFunction = !avgUnspecifiedField(functionProfile.场所功能)
         ? categoryPool.filter(asset => asset.profile.场所功能 === functionProfile.场所功能) : [];
     const direct = categoryPool.filter(directFunction);
@@ -98,7 +102,7 @@ const sceneCandidatePool = (requested: AvgSceneProfile, assets: AvgSceneAsset[],
     const closest = related.filter(item => Number.isFinite(item.distance) && item.distance === closestDistance).map(item => item.asset);
     // Search related spaces before relaxing the function. An unrelated exact-space
     // asset must not hide a restaurant image just because its space label differs.
-    const functionPool = exactFunction.length > 0 ? exactFunction : direct.length > 0 ? direct : closest;
+    const functionPool = nearest ? categoryPool : exactFunction.length > 0 ? exactFunction : direct.length > 0 ? direct : closest;
     const sameSpace = functionPool.filter(asset => asset.profile.空间 === profile.空间);
     const spacePool = sameSpace.length > 0 ? sameSpace : functionPool;
     // Theme/style are preferences within the best metadata match, never reasons
@@ -106,7 +110,9 @@ const sceneCandidatePool = (requested: AvgSceneProfile, assets: AvgSceneAsset[],
     const venuePreference = (asset: AvgSceneAsset) => avgUnspecifiedField(profile.场所功能) || avgUnspecifiedField(asset.profile.场所功能)
         ? 0 : profile.场所功能 === asset.profile.场所功能 ? 2 : -6;
     const candidateScore = (asset: AvgSceneAsset) => score(functionProfile, asset.profile)
-        + (fallback ? avgLocationArtScore(placeKey, asset) + venuePreference(asset) : 0);
+        + (fallback ? avgLocationArtScore(placeKey, asset, nearest) + venuePreference(asset)
+            + (nearest && !avgUnspecifiedField(profile.空间)
+                ? asset.profile.空间 === profile.空间 ? 100 : alternatives.includes(asset.profile.空间) ? 60 : 0 : 0) : 0);
     const ranked = spacePool.map(asset => ({ asset, points: candidateScore(asset) }));
     const top = ranked.length ? Math.max(...ranked.map(item => item.points)) : 0;
     const bestPool = ranked.filter(item => item.points === top).map(item => item.asset);
@@ -116,26 +122,26 @@ const sceneCandidatePool = (requested: AvgSceneProfile, assets: AvgSceneAsset[],
     const pool = sameStyle.length > 0 ? sameStyle : themePool;
     const spacesBefore = known.filter(matchesSpace);
     const spacesAfterInstitution = institution.filter(matchesSpace);
-    const failureStage = !spacesBefore.length ? 'space' : !spacesAfterInstitution.length ? 'institution'
+    const failureStage = categoryPool.length ? undefined : !spacesBefore.length ? 'space' : !spacesAfterInstitution.length ? 'institution'
         : !categoryPool.length ? 'function' : undefined;
     return { pool, failureStage, spacesBefore, spacesAfterInstitution, fallback, candidateScore,
         selection: { allowedSpaces: [profile.空间, ...alternatives],
-            functionTier: !functionPool.length ? 'none' : exactFunction.length ? 'exact' : direct.length ? 'direct-or-general' : 'related-function',
-            spaceTier: !spacePool.length ? 'none' : sameSpace.length ? 'exact' : 'compatible' },
+            functionTier: !functionPool.length ? 'none' : nearest ? 'scored-preference' : exactFunction.length ? 'exact' : direct.length ? 'direct-or-general' : 'related-function',
+            spaceTier: !spacePool.length ? 'none' : nearest ? 'nearest-catalog' : sameSpace.length ? 'exact' : 'compatible' },
         counts: { total: assets.length, knownSpace: known.length,
         exactSpaceBeforeFilters: known.filter(asset => asset.profile.空间 === profile.空间).length,
         exactSpaceAfterInstitution: institution.filter(asset => asset.profile.空间 === profile.空间).length,
         exactSpaceAfterFunction: exact.length,
         compatibleSpaceBeforeFilters: spacesBefore.length, compatibleSpaceAfterInstitution: spacesAfterInstitution.length,
         afterInstitution: institution.length, afterFunction: available.length,
-        exactSpace: exact.length, category: categoryPool.length, afterFunctionPreference: functionPool.length,
+        exactSpace: exact.length, beforeNearestFallback: broad ? 0 : strictCategory.length, category: categoryPool.length, afterFunctionPreference: functionPool.length,
         afterSpacePreference: spacePool.length,
         afterProfilePreference: bestPool.length,
         afterThemePreference: themePool.length, afterStylePreference: pool.length } };
 };
 
-export const inspectAvgSceneCandidates = (profile: AvgSceneProfile, assets: AvgSceneAsset[], theme?: string, placeKey?: string) => {
-    const { pool, counts, selection, failureStage, spacesBefore, spacesAfterInstitution, fallback, candidateScore } = sceneCandidatePool(profile, assets, undefined, theme, placeKey);
+export const inspectAvgSceneCandidates = (profile: AvgSceneProfile, assets: AvgSceneAsset[], theme?: string, placeKey?: string, contextRegion?: string) => {
+    const { pool, counts, selection, failureStage, spacesBefore, spacesAfterInstitution, fallback, candidateScore } = sceneCandidatePool(profile, assets, undefined, theme, placeKey, contextRegion);
     const rejected = failureStage === 'institution' ? spacesBefore : failureStage === 'function' ? spacesAfterInstitution : [];
     return { counts, selection, fallback, candidateIds: pool.slice(0, 12).map(asset => asset.id), candidatesTruncated: pool.length > 12,
         candidates: pool.slice(0, 12).map(asset => ({ id: asset.id, profile: asset.profile,
@@ -145,11 +151,11 @@ export const inspectAvgSceneCandidates = (profile: AvgSceneProfile, assets: AvgS
             rejectedCandidatesTruncated: rejected.length > 12 } : null };
 };
 
-const resolveAsset = (profile: AvgSceneProfile, placeKey: string, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string): AvgSceneAsset | undefined => {
-    const { pool } = sceneCandidatePool(profile, assets, preferredStyle, theme, placeKey);
-    if (pool.length === 0) return undefined;
+const resolveAsset = (profile: AvgSceneProfile, placeKey: string, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string, contextRegion?: string) => {
+    const { pool, fallback } = sceneCandidatePool(profile, assets, preferredStyle, theme, placeKey, contextRegion);
+    if (pool.length === 0) return { asset: undefined, fallback: undefined };
     const ties = [...pool].sort((a, b) => a.id.localeCompare(b.id));
-    return ties[hash(placeKey) % ties.length];
+    return { asset: ties[hash(placeKey) % ties.length], fallback };
 };
 
 /** Diagnostic inspection uses exactly the same identity lookup as playback. */
@@ -215,12 +221,19 @@ export const buildAvgPresentation = (
         const label = keyFields.map(key => location?.[key]).filter(Boolean).join(' / ') || previous?.label || profile.空间;
         const overrideId = overrides[placeKey] || previous?.placeAliases?.map(key => overrides[key]).find(Boolean);
         const binding = !overrideId ? previous : undefined;
+        // A consensus in explicitly classified prior scenes provides only a
+        // regional art preference. It never reuses another place's identity.
+        const regions = new Set([...prior.byId.values()].filter(scene => scene.placeKey.split('/')[0] === location?.大地点
+            && !avgUnspecifiedField(scene.profile.地域)).map(scene => scene.profile.地域!));
+        const contextRegion = regions.size === 1 ? [...regions][0] : undefined;
+        const resolved = !overrideId && !binding && !lookup.conflict
+            ? resolveAsset(profile, placeKey, assets, venueStyles.get(placeKey.split('/').slice(0, 3).join('/')), theme, contextRegion)
+            : undefined;
         const asset = overrideId
             ? assets.find(candidate => candidate.id === overrideId)
             : binding
             ? assets.find(candidate => candidate.id === binding.assetId && candidate.version === binding.version)
-            : lookup.conflict ? undefined
-            : resolveAsset(profile, placeKey, assets, venueStyles.get(placeKey.split('/').slice(0, 3).join('/')), theme);
+            : resolved?.asset;
         if (asset?.styleFamily) venueStyles.set(placeKey.split('/').slice(0, 3).join('/'), asset.styleFamily);
         const scene: AvgResolvedScene = {
             ref: hint.ref, placeKey, label, profile,
@@ -231,8 +244,8 @@ export const buildAvgPresentation = (
             version: binding?.version || asset?.version,
             reason: overrideId ? (asset ? 'manual-place-override' : 'manual-neutral')
                 : binding?.reason === 'manual-neutral' ? 'manual-neutral'
-                : binding ? 'existing-binding' : asset ? (avgLocationFallback(profile, placeKey) ? 'location-fallback' : 'first-match') : 'neutral-background',
-            fallback: binding?.fallback || (!overrideId && asset ? avgLocationFallback(profile, placeKey) : undefined)
+                : binding ? 'existing-binding' : asset ? (resolved?.fallback ? 'location-fallback' : 'first-match') : 'neutral-background',
+            fallback: binding?.fallback || resolved?.fallback
         };
         scenes.push(scene);
         // Later refs in this same reply can return to the first selected binding too.

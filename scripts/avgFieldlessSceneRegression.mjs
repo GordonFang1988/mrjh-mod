@@ -71,7 +71,10 @@ assert.equal(explicit.scenes[0].fallback,undefined);
 assert.equal(resolve([{...hint,分类:{空间:'院落'}}]).scenes[0].assetId,'outdoor');
 assert.equal(resolve([{...hint,分类:{空间:'模型指定但无素材'}}]).scenes[0].image,undefined);
 assert.equal(resolve([]).scenes[0].image,undefined); // unmapped camera cannot borrow final location
-assert.equal(buildAvgPresentation(logs,[],{...env,具体地点:'未识别的地点'} as any,[],assets).scenes[0].image,undefined);
+const unseen = buildAvgPresentation(logs,[],{...env,具体地点:'未识别的地点'} as any,[],assets).scenes[0];
+assert.ok(unseen.image);
+assert.deepEqual(unseen.profile,{空间:'未知'});
+assert.equal(unseen.fallback.tier,'nearest-catalog');
 
 // The saved diagnostic is already blank. Exercise real read-time recovery with
 // only local pack storage replaced; neither narrative nor game commands change.

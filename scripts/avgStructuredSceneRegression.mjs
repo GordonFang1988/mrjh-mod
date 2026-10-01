@@ -54,7 +54,7 @@ assert.deepEqual(unsupported.scenes[0].profile,payload.场景[0].分类);
 assert.equal(unsupported.scenes[0].image,undefined);
 assert.equal(unsupported.diagnostic,undefined);
 
-// Missing fields/ref mappings affect only those frames; names never invent a class.
+// Missing ref mappings stay unresolved; missing classification can select art without rewriting the class.
 const partial = normalizeAvgHints({场景:[hints[0],{ref:'s2',分类:{地域:'华北'}},hints[2]]});
 assert.deepEqual(partial.map(hint => hint.ref),['s1','s3']);
 const incomplete = buildAvgPresentation(logs,partial,env as any,[],assets);
@@ -66,7 +66,8 @@ assert.deepEqual(duplicates.map(hint => hint.ref),['s1','s3']);
 for (const location of [env,{...env,具体地点:'洞内'},{...env,具体地点:'客栈大堂'}]) {
   const neutral = buildAvgPresentation([{sender:'旁白',text:'没有分类'}],[],location as any,[],assets);
   assert.equal(neutral.scenes[0].profile.空间,'未知');
-  assert.equal(neutral.scenes[0].image,undefined);
+  assert.ok(neutral.scenes[0].image);
+  assert.equal(neutral.scenes[0].reason,'location-fallback');
 }
 const single = buildAvgPresentation([{sender:'旁白',text:'室内'}],[hints[1]],env as any,[],assets);
 assert.equal(single.mode,'final');

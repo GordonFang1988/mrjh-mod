@@ -4,6 +4,16 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-02', date: '2026年10月2日', updates: [{
+        id: '2026-10-02-v1.0.9', time: '01:31', version: 'v1.0.9',
+        title: '修复新地点再次出现空白背景',
+        summary: '模型漏场景分类时，新地名不必命中固定词条，也能从现有图库中选择相近背景。',
+        items: [
+            '房间类型未命中或同类素材为空时继续评分，结合具体地点、素材分类、标签和自然要素选图。',
+            '具体地点优先于上级场所；同一大地点的历史分类地域可作为选图偏好，原模型字段保持原样。',
+            '旧空白回合可在读档时恢复，已绑定背景、手工选择、正文与游戏命令保持稳定。',
+            '使用完整 2230 张场景图库验证连续 48 个新地点、48 次返回，以及深谷回合的 11 段播放和 12 次浏览器转场。'
+        ]
+    }, {
         id: '2026-10-02-v1.0.8', time: '00:56', version: 'v1.0.8',
         title: 'OpenCode 请求自动经过现有代理',
         summary: '填写原 OpenCode 地址即可使用代理，模型列表、主剧情和辅助请求统一处理。',

@@ -40,9 +40,15 @@ const changed = buildAvgPresentation(logs,[{...hint,分类:assets[1].profile}],o
 assert.equal(changed.scenes[0].assetId,'office');
 assert.deepEqual(changed.scenes[0].profile,assets[1].profile);
 assert.deepEqual(buildAvgPresentation(logs,[{...hint,分类:{空间:'未知'}}],office as any,history,assets).scenes[0].profile,{空间:'未知'});
-// No semantic name guess: this actual save's office alias remains unresolved until the model links its ID.
-assert.equal(buildAvgPresentation([],[],alias as any,history,assets).scenes[0].image,undefined);
-assert.equal(buildAvgPresentation(logs,normalizeAvgHints({场景:[{ref:'s1',地点:alias}]}),alias as any,history,assets).scenes[0].image,undefined);
+// Approximate art can be selected for a new place; it cannot declare an alias of the old office.
+for (const fresh of [buildAvgPresentation([],[],alias as any,history,assets),
+  buildAvgPresentation(logs,normalizeAvgHints({场景:[{ref:'s1',地点:alias}]}),alias as any,history,assets)]) {
+  assert.ok(fresh.scenes[0].image);
+  assert.equal(fresh.scenes[0].reason,'location-fallback');
+  assert.notEqual(fresh.scenes[0].sceneId,id);
+  assert.deepEqual(fresh.scenes[0].placeAliases,[avgPlaceKey(alias)]);
+}
+assert.equal(inspectAvgSceneBindings(history,avgPlaceKey(alias)).bindingFound,false);
 const reuse = {ref:'s1',场景ID:id,地点:alias};
 const raw = '<正文><镜头 ref="s1"/>\n【旁白】回到捕房。</正文><演出场景>'+JSON.stringify({场景:[reuse]})+'</演出场景>';
 const parsed = parseStoryRawText(raw);
@@ -76,18 +82,23 @@ assert.equal(buildAvgPresentation([],[],alias as any,aliasHistory,assets,{[avgPl
 const neutral = buildAvgPresentation(logs,[hint],office as any,history,assets,{[avgPlaceKey(office)]:'neutral'});
 assert.equal(buildAvgPresentation([],[],office as any,[...history,wrap(neutral)],assets).scenes[0].reason,'manual-neutral');
 // Loading an old blank exact return repairs presentation only; unrelated alias/frozen story remains intact.
-const oldBlank = buildAvgPresentation([],[],office as any,[],assets);
+const historicalBlank = location => {
+  const result = buildAvgPresentation([],[],location as any,[],assets);
+  return {...result,scenes:result.scenes.map(scene=>({...scene,assetId:undefined,image:undefined,version:undefined,fallback:undefined,reason:'neutral-background'}))};
+};
+const oldBlank = historicalBlank(office);
 const response = {logs:[],avgSceneHints:[],avgPresentation:oldBlank,tavern_commands:[{key:'环境.具体地点',value:office.具体地点}]};
 const before = JSON.stringify(response);
 const restored = restoreStructuredAvgScenes(response as any,history,assets);
 assert.equal(restored.scenes[0].assetId,'office');
 assert.equal(restoreStructuredAvgScenes({...response,avgPresentation:restored} as any,history,assets),restored);
 assert.equal(JSON.stringify(response),before);
-const aliasBlank = {...response,avgPresentation:buildAvgPresentation([],[],alias as any,[],assets)};
+const aliasBlank = {...response,avgPresentation:historicalBlank(alias)};
 assert.equal(restoreStructuredAvgScenes(aliasBlank as any,history,assets),aliasBlank.avgPresentation);
 // Legacy automatically inferred invalid bindings are excluded, while existing explicit manual choices survive.
 const inferred = [{...history[0],structuredResponse:{...history[0].structuredResponse,avgPresentation:{...first,diagnostic:'invalid-scene-timeline'}}}];
-assert.equal(buildAvgPresentation([],[],office as any,inferred,assets).scenes[0].image,undefined);
+assert.equal(inspectAvgSceneBindings(inferred,avgPlaceKey(office)).bindingFound,false);
+assert.equal(buildAvgPresentation([],[],office as any,inferred,assets).scenes[0].reason,'location-fallback');
 assert.equal(JSON.stringify({history,logs,assets}),original);
 // Full binding history is sent through normal and tavern requests even after the story window drops its turn.
 const params = {gameConfig:{启用AVG演出:true},apiConfig:{},builtContext:{shortMemoryContext:'',contextPieces:new Proxy({},{get:()=>''})},updatedContextHistory:[],avgBindingHistory:both,updatedMemSys:{},sendInput:'返回',playerRole:{姓名:'测试'}};

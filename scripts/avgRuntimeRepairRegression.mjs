@@ -22,9 +22,13 @@ assert.equal(get({...wu,AVG美术选择:{source:'prefab',assetId:'worker',baseAs
 assert.equal(get({...yao,身份:'改做镖师'},[{structuredResponse:{avgPortraitBindings:{姚二郎:{npcId:'y',assetId:'worker',baseAssetId:'worker',reason:'first-match'}}}}]).assetId,'worker');
 const env={大地点:'京东东路',中地点:'清河县',小地点:'紫石街',具体地点:'十字路口'};
 const asset={id:'street',version:1,image:'/street.webp',profile:{空间:'城内街道'}};
-assert.equal(buildAvgPresentation([{sender:'旁白',text:'开场'}],[],env,[],[asset]).scenes[0].assetId,undefined);
-assert.equal(buildAvgPresentation([], [{ref:'s1',地点:env,分类:{空间:'未知'}}],env,[],[asset]).scenes[0].assetId,undefined);
-console.log('Named metadata repair, saved generic recovery, numerical age limits, stable ordinary identity and missing scene fields remain neutral: passed');
+for (const presentation of [buildAvgPresentation([{sender:'旁白',text:'开场'}],[],env,[],[asset]),
+  buildAvgPresentation([], [{ref:'s1',地点:env,分类:{空间:'未知'}}],env,[],[asset])]) {
+  assert.equal(presentation.scenes[0].assetId,'street');
+  assert.deepEqual(presentation.scenes[0].profile,{空间:'未知'});
+  assert.equal(presentation.scenes[0].fallback.tier,'nearest-catalog');
+}
+console.log('Named metadata repair, saved generic recovery, numerical age limits, stable ordinary identity and missing-field art fallback: passed');
 `;
 const result=await build({stdin:{contents:source,loader:'ts',resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false,logLevel:'silent'});
 await import('data:text/javascript;base64,'+Buffer.from(result.outputFiles[0].text).toString('base64'));

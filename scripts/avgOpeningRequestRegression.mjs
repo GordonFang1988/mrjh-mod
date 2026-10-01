@@ -95,7 +95,10 @@ try {
    assert.deepEqual(saved.history.at(-1).structuredResponse.avgPresentation,response.avgPresentation);
   } else {
    assert.equal(turn.structuredResponse.avgSceneHints?.length || 0,0);
-   assert.ok(turn.structuredResponse.avgPresentation.scenes.every(scene=>!scene.image));
+   // Disabled AVG omits model fields/protocol. Cached presentation may still
+   // contain local approximate art, with the absent source classification preserved.
+   assert.ok(turn.structuredResponse.avgPresentation.scenes.every(scene=>scene.profile.空间 === '未知'));
+   assert.ok(turn.structuredResponse.avgPresentation.scenes.every(scene=>!scene.image || scene.reason === 'location-fallback'));
   }
   cases++;
  }
