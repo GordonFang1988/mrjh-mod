@@ -1,5 +1,6 @@
 import type { GameResponse, 聊天记录结构 } from '../../types';
 import type { AvgSceneTrace, AvgSceneFieldSnapshot, AvgResolvedScene } from '../../models/avg';
+import type { inspectAvgSceneCandidates } from './sceneResolver';
 import { APP_VERSION } from '../../release/version';
 import { AVG_VOCABULARY_VERSION, AVG_FULL_PROTOCOL_PROMPT } from './vocabulary';
 import { parseStoryRawText } from '../ai/storyResponseParser';
@@ -143,6 +144,7 @@ export const diagnoseAvgSceneDisplay = (input: {
     sceneRef?: string; availability?: string; candidateCount?: number; imageState?: string; catalogAvailable?: boolean;
     bindingReuseBlockReason?: string;
     bindingReuseAvailable?: boolean;
+    matching?: ReturnType<typeof inspectAvgSceneCandidates>;
 }) => {
     const result = (code: string, summary: string, confirmed = true) => ({ code, summary, confirmed });
     const { scene, response, source, availability, imageState } = input;
@@ -170,6 +172,16 @@ export const diagnoseAvgSceneDisplay = (input: {
     if (!scene || scene.profile.空间 === '未知')
         return result('scene-ref-unmapped', `镜头 ${input.sceneRef || '未标记'} 没有可使用的结构化场景分类。`);
     if (input.catalogAvailable === false) return result('scene-catalog-unavailable', '场景分类已保留，但素材库读取失败，无法确认匹配结果。', false);
-    if (input.candidateCount === 0) return result('scene-no-compatible-art', '结构化分类已保留，但当前素材库没有通过匹配条件的场景图。');
+    if (input.candidateCount === 0) {
+        const matching = input.matching;
+        const stage = matching?.failure?.stage;
+        const spaces = matching?.counts.compatibleSpaceBeforeFilters;
+        const remaining = matching?.counts.compatibleSpaceAfterInstitution;
+        const detail = stage === 'space' ? `图库没有空间“${scene.profile.空间}”或其兼容空间的素材。`
+            : stage === 'institution' ? `${spaces} 张空间相同或兼容的图，按场所体系“${scene.profile.场所体系}”筛选后剩余 0 张。`
+            : stage === 'function' ? `${spaces} 张空间相同或兼容的图，通过场所体系筛选后 ${remaining} 张，按场所功能“${scene.profile.场所功能}”筛选后剩余 0 张。`
+            : '当前素材库没有通过匹配条件的场景图。';
+        return result('scene-no-compatible-art', `结构化分类已保留；${detail}`);
+    }
     return result('scene-selection-missing', '当前有结构化分类和候选素材，但该镜头未保存图片选择；候选数量反映导出时的素材库。');
 };

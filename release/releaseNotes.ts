@@ -4,6 +4,16 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-01', date: '2026年10月1日', updates: [{
+        id: '2026-10-01-v1.0.4', time: '20:10', version: 'v1.0.4',
+        title: '修复饮食店室内背景匹配',
+        summary: '接通茶馆、酒楼大厅与客栈大堂的室内素材匹配，修复羊汤馆等地点有图却显示空白的问题。',
+        items: [
+            '保留剧情模型的原始分类，在相近公共饮食空间中优先选择场所功能相同的图，再参考地域、装潢和规模。',
+            '缺少同功能素材时可使用相近饮食空间，不扩大到厨房、客房、普通商铺或官署。',
+            '已有场景继续复用原图；读档时可恢复保存了完整分类的旧空白背景。',
+            '诊断导出补充空间、场所体系与功能的筛选数量、被排除的素材分类和实际使用的匹配层级。'
+        ]
+    }, {
         id: '2026-10-01-v1.0.3', time: '19:44', version: 'v1.0.3',
         title: '修复 AVG 沉浸模式的后台运行提示',
         summary: 'AVG 沉浸和全屏时也能看到请求状态与独立更新阶段队列。',

@@ -87,6 +87,7 @@ export const buildAvgDiagnostic = async (input: {
         ...diagnoseAvgSceneDisplay({ source: diagnosisSource, response: shownResponse || latest,
             scene: diagnosisScene, sceneRef: shownRef || diagnosisScene?.ref, availability: diagnosisScene?.availability,
             candidateCount: diagnosisScene?.matching.counts.category, catalogAvailable: !packStorageError,
+            matching: diagnosisScene?.matching,
             bindingReuseBlockReason: bindingReuse?.blockReason,
             bindingReuseAvailable: bindingReuse?.reuseAllowedByCurrentResolver,
             imageState: shownTurn ? imageState : undefined }),

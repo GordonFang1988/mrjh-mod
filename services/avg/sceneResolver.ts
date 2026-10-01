@@ -35,10 +35,16 @@ export const sceneAssetsFromArchive = (archive?: 场景图片档案, theme?: str
 const compatible: Record<string, string[]> = {
     山道: ['山腰', '后山小径'], 后山小径: ['山道', '林间小径'], 练剑坪: ['露天练武场'],
     门派广场: ['门派前庭', '露天练武场'], 门派前庭: ['门派广场'],
-    藏经阁: ['藏书阁'], 藏书阁: ['藏经阁'], 客栈大堂: ['酒楼大厅', '茶馆'],
+    藏经阁: ['藏书阁'], 藏书阁: ['藏经阁'],
+    客栈大堂: ['酒楼大厅', '茶馆'], 酒楼大厅: ['茶馆', '客栈大堂'], 茶馆: ['酒楼大厅', '客栈大堂'],
     洞内: ['静修洞穴'], 静修洞穴: ['洞内'], 山腰: ['山道', '山脚'],
     树林: ['林间空地'], 林间空地: ['树林']
 };
+
+// These art categories all depict public dining/seating rooms. This is resource
+// compatibility, not a replacement for the model's independent space/function fields.
+const diningSpaces = new Set(['茶馆', '酒楼大厅', '客栈大堂']);
+const diningFunctions = new Set(['茶馆', '酒楼', '客栈']);
 
 const weights: Array<[keyof AvgSceneProfile, number]> = [
     ['地域', 10], ['地理环境', 12], ['植被', 16], ['地表', 9], ['水域', 15],
@@ -78,31 +84,56 @@ const score = (wanted: AvgSceneProfile, available: AvgSceneProfile): number => {
 const sceneCandidatePool = (profile: AvgSceneProfile, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string) => {
     const compatibleInstitution = (asset: AvgSceneAsset) => !profile.场所体系 || !asset.profile.场所体系
         || asset.profile.场所体系 === '通用' || profile.场所体系 === asset.profile.场所体系;
-    const compatibleFunction = (asset: AvgSceneAsset) => !profile.场所功能 || !asset.profile.场所功能
+    const directFunction = (asset: AvgSceneAsset) => !profile.场所功能 || !asset.profile.场所功能
         || asset.profile.场所功能 === '通用' || profile.场所功能 === '通用'
         || profile.场所功能 === asset.profile.场所功能;
+    const relatedFunction = (asset: AvgSceneAsset) => diningSpaces.has(profile.空间) && diningSpaces.has(asset.profile.空间)
+        && diningFunctions.has(profile.场所功能 || '') && diningFunctions.has(asset.profile.场所功能 || '');
+    const matchesSpace = (asset: AvgSceneAsset) => asset.profile.空间 === profile.空间
+        || (compatible[profile.空间] || []).includes(asset.profile.空间);
     const known = assets.filter(asset => asset.profile.空间 !== '未知');
     const institution = known.filter(compatibleInstitution);
-    const available = institution.filter(compatibleFunction);
+    const available = institution.filter(asset => directFunction(asset) || relatedFunction(asset));
     const exact = available.filter(asset => asset.profile.空间 === profile.空间);
-    const categoryPool = exact.length > 0 ? exact : available.filter(asset => (compatible[profile.空间] || []).includes(asset.profile.空间));
+    const categoryPool = available.filter(matchesSpace);
     const exactFunction = profile.场所功能 && profile.场所功能 !== '通用'
         ? categoryPool.filter(asset => asset.profile.场所功能 === profile.场所功能) : [];
-    const functionPool = exactFunction.length > 0 ? exactFunction : categoryPool;
-    const themed = normalizeAvgTheme(theme) ? functionPool.filter(asset => asset.themeId === normalizeAvgTheme(theme)) : [];
-    const themePool = themed.length ? themed : functionPool;
+    const direct = categoryPool.filter(directFunction);
+    // Search related spaces before relaxing the function. An unrelated exact-space
+    // asset must not hide a restaurant image just because its space label differs.
+    const functionPool = exactFunction.length > 0 ? exactFunction : direct.length > 0 ? direct : categoryPool;
+    const sameSpace = functionPool.filter(asset => asset.profile.空间 === profile.空间);
+    const spacePool = sameSpace.length > 0 ? sameSpace : functionPool;
+    const themed = normalizeAvgTheme(theme) ? spacePool.filter(asset => asset.themeId === normalizeAvgTheme(theme)) : [];
+    const themePool = themed.length ? themed : spacePool;
     const sameStyle = preferredStyle ? themePool.filter(asset => asset.styleFamily === preferredStyle) : [];
     const pool = sameStyle.length > 0 ? sameStyle : themePool;
-    return { pool, counts: { total: assets.length, knownSpace: known.length,
+    const spacesBefore = known.filter(matchesSpace);
+    const spacesAfterInstitution = institution.filter(matchesSpace);
+    const failureStage = !spacesBefore.length ? 'space' : !spacesAfterInstitution.length ? 'institution'
+        : !categoryPool.length ? 'function' : undefined;
+    return { pool, failureStage, spacesBefore, spacesAfterInstitution,
+        selection: { allowedSpaces: [profile.空间, ...(compatible[profile.空间] || [])],
+            functionTier: !functionPool.length ? 'none' : exactFunction.length ? 'exact' : direct.length ? 'direct-or-general' : 'related-dining',
+            spaceTier: !spacePool.length ? 'none' : sameSpace.length ? 'exact' : 'compatible' },
+        counts: { total: assets.length, knownSpace: known.length,
         exactSpaceBeforeFilters: known.filter(asset => asset.profile.空间 === profile.空间).length,
+        exactSpaceAfterInstitution: institution.filter(asset => asset.profile.空间 === profile.空间).length,
+        exactSpaceAfterFunction: exact.length,
+        compatibleSpaceBeforeFilters: spacesBefore.length, compatibleSpaceAfterInstitution: spacesAfterInstitution.length,
         afterInstitution: institution.length, afterFunction: available.length,
         exactSpace: exact.length, category: categoryPool.length, afterFunctionPreference: functionPool.length,
+        afterSpacePreference: spacePool.length,
         afterThemePreference: themePool.length, afterStylePreference: pool.length } };
 };
 
 export const inspectAvgSceneCandidates = (profile: AvgSceneProfile, assets: AvgSceneAsset[], theme?: string) => {
-    const { pool, counts } = sceneCandidatePool(profile, assets, undefined, theme);
-    return { counts, candidateIds: pool.slice(0, 12).map(asset => asset.id), candidatesTruncated: pool.length > 12 };
+    const { pool, counts, selection, failureStage, spacesBefore, spacesAfterInstitution } = sceneCandidatePool(profile, assets, undefined, theme);
+    const rejected = failureStage === 'institution' ? spacesBefore : failureStage === 'function' ? spacesAfterInstitution : [];
+    return { counts, selection, candidateIds: pool.slice(0, 12).map(asset => asset.id), candidatesTruncated: pool.length > 12,
+        failure: failureStage ? { stage: failureStage, requested: profile,
+            rejectedCandidates: rejected.slice(0, 12).map(asset => ({ id: asset.id, profile: asset.profile })),
+            rejectedCandidatesTruncated: rejected.length > 12 } : null };
 };
 
 const resolveAsset = (profile: AvgSceneProfile, placeKey: string, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string): AvgSceneAsset | undefined => {
