@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { 功法结构 } from '../../../models/kungfu';
+import { filterValidKungfuRecords } from '../../../utils/kungfuRecords';
 import { getRarityNameClass, getRarityStyles } from '../../ui/rarityStyles';
 import { IconLock, IconScroll, IconSparkles, IconYinYang } from '../../ui/Icons';
 
@@ -9,7 +10,7 @@ interface Props {
 }
 
 const KungfuModal: React.FC<Props> = ({ skills, onClose }) => {
-    const safeSkills = Array.isArray(skills) ? skills : [];
+    const safeSkills = useMemo(() => filterValidKungfuRecords(skills), [skills]);
     const [selectedId, setSelectedId] = useState<string | null>(
         safeSkills.length > 0 ? safeSkills[0].ID : null
     );

@@ -14,6 +14,8 @@ import {
     约定结构
 } from '../types';
 
+import { isValidRecordListCommand } from './recordListCommands';
+
 type 状态命令动作 = 'set' | 'add' | 'push' | 'delete' | 'sub';
 
 const 根路径列表 = [
@@ -303,6 +305,11 @@ export const applyStateCommand = (
     };
 
     if (!parsed) {
+        return result;
+    }
+
+    if (!isValidRecordListCommand(normalizedKey, action, value)) {
+        console.warn('[state-command] 无效列表条目已忽略:', action, normalizedKey);
         return result;
     }
 

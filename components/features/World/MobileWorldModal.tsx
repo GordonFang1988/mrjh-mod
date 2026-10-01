@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { 世界数据结构 } from '../../../models/world';
+import { 规范化世界状态 } from '../../../hooks/useGame/storyState';
 import { normalizeCanonicalGameTime, 结构化时间转标准串 } from '../../../hooks/useGame/timeUtils';
 import { IconMapPin } from '../../ui/Icons';
 
@@ -65,12 +66,7 @@ const MobileWorldModal: React.FC<Props> = ({
     const [localNotice, setLocalNotice] = useState('');
     const [showRawMessage, setShowRawMessage] = useState(false);
 
-    const 待执行事件 = useMemo(() => Array.isArray(world?.待执行事件) ? world.待执行事件 : [], [world]);
-    const 进行中事件 = useMemo(() => Array.isArray(world?.进行中事件) ? world.进行中事件 : [], [world]);
-    const 已结算事件 = useMemo(() => Array.isArray(world?.已结算事件) ? world.已结算事件 : [], [world]);
-    const 活跃NPC列表 = useMemo(() => Array.isArray(world?.活跃NPC列表) ? world.活跃NPC列表 : [], [world]);
-    const 世界镜头规划 = useMemo(() => Array.isArray(world?.世界镜头规划) ? world.世界镜头规划 : [], [world]);
-    const 江湖史册 = useMemo(() => Array.isArray(world?.江湖史册) ? world.江湖史册 : [], [world]);
+    const { 待执行事件, 进行中事件, 已结算事件, 活跃NPC列表, 世界镜头规划, 江湖史册 } = 规范化世界状态(world);
 
     const hasRawMessage = typeof worldEvolutionLastRawText === 'string' && worldEvolutionLastRawText.trim().length > 0;
 

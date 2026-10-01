@@ -3,6 +3,7 @@ import { normalizeCanonicalGameTime, 结构化时间转标准串 } from './timeU
 import { normalizeBodyPartVitals } from '../../utils/characterVitals';
 import { 压缩图片资源字段 } from '../../utils/imageAssets';
 import { filterValidSocialNpcRecords } from '../../utils/npcCommandSafety';
+import { filterValidKungfuRecords } from '../../utils/kungfuRecords';
 import { normalizeAvgPortraitProfile } from '../../services/avg/portraitVocabulary';
 
 const 深拷贝 = <T,>(data: T): T => JSON.parse(JSON.stringify(data)) as T;
@@ -397,7 +398,7 @@ const 规范化角色物品容器映射 = (rawRole?: any): 角色数据结构 =>
         })
         .filter(Boolean)
         .map((item: any, idx: number) => ({ ...item, 索引: idx }));
-    (role as any).功法列表 = Array.isArray((role as any).功法列表) ? (role as any).功法列表 : [];
+    (role as any).功法列表 = filterValidKungfuRecords((role as any).功法列表);
 
     const rawEquip = role?.装备 && typeof role.装备 === 'object' ? role.装备 : ({} as any);
     role.装备 = { ...默认装备模板, ...(rawEquip as any) };
