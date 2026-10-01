@@ -9,6 +9,9 @@ import MobileQuickMenu from './components/layout/MobileQuickMenu';
 import ChatList from './components/features/Chat/ChatList';
 import InputArea from './components/features/Chat/InputArea';
 import LandingPage from './components/layout/LandingPage';
+import { ChangelogModal } from './components/layout/ChangelogModal';
+import { APP_VERSION_LABEL } from './release/version';
+import { recordDailyChangelogView } from './release/dailyChangelog';
 import InAppConfirmModal, { ConfirmOptions } from './components/ui/InAppConfirmModal';
 import { useGame } from './hooks/useGame';
 import { 环境时间转标准串, normalizeCanonicalGameTime, 结构化时间转标准串 } from './hooks/useGame/timeUtils';
@@ -95,6 +98,9 @@ const App: React.FC = () => {
     const avgImmersive = useAvgImmersive();
     const [avgRail, setAvgRail] = React.useState<'left' | 'right' | null>(null);
     const [showDiagnostic, setShowDiagnostic] = React.useState(false);
+    const [showChangelog, setShowChangelog] = React.useState(false);
+    const openChangelog = React.useCallback(() => { recordDailyChangelogView(); setShowChangelog(true); }, []);
+    const closeChangelog = React.useCallback(() => setShowChangelog(false), []);
     React.useEffect(() => {
         if (!avgImmersive.active) { setAvgRail(null); return; }
         const measure = () => {
@@ -708,6 +714,7 @@ const App: React.FC = () => {
         <MusicProvider visualConfig={state.visualConfig} onSaveVisual={actions.saveVisualSettings}>
             <div className="h-screen w-screen overflow-hidden bg-ink-black relative flex flex-col p-3 transition-colors duration-500" style={uiTextStyleVars}>
                 {fontFaceStyleText && <style>{fontFaceStyleText}</style>}
+                {showChangelog && <ChangelogModal onClose={closeChangelog} />}
                 {showDiagnostic && <DiagnosticExport history={state.历史记录} social={state.社交} environment={state.环境} theme={state.gameConfig.AVG主题} archive={meta.sceneImageArchive} onClose={() => setShowDiagnostic(false)} />}
 
             
@@ -721,6 +728,7 @@ const App: React.FC = () => {
                     onNovelDecomposition={() => { void openNovelDecompositionWorkbench(); }}
                     onSettings={openSettings}
                     hasSave={state.hasSave}
+                    onChangelog={openChangelog}
                 />
             )}
 
@@ -1024,7 +1032,7 @@ const App: React.FC = () => {
                             </div>
 
                             <div className="shrink-0 text-wuxia-gold font-bold ml-2 z-20 bg-ink-black/90 px-2 flex items-center h-full border-l border-gray-800">
-                                【V0.0.1】
+                                <button type="button" onClick={openChangelog} aria-label="查看更新日志">【{APP_VERSION_LABEL}】更新日志</button>
                             </div>
                         </div>
                     )}

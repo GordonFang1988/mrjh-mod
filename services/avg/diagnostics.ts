@@ -3,6 +3,7 @@ import { getAvgPackCatalog, getAvgPackImageBlob, isAvgPackImage, listAvgArtPacks
 import { getAvgPortraitAssets, resolveAvgPortraits } from './portraitResolver';
 import { namedAvgCharacterKey, isAvgBasePortrait } from './identity';
 import { readAvgDisplay } from './displayPreferences';
+import { APP_VERSION } from '../../release/version';
 import { buildAvgPresentation, sceneAssetsFromArchive } from './sceneResolver';
 
 export const buildAvgDiagnostic = async (input: {
@@ -40,7 +41,7 @@ export const buildAvgDiagnostic = async (input: {
     const catalog = getAvgPackCatalog();
     return {
         schema: 'mrjh-diagnostic-v1', exportedAt: new Date().toISOString(),
-        app: { url: `${location.origin}${location.pathname}`, userAgent: navigator.userAgent, viewport: { width: innerWidth, height: innerHeight } },
+        app: { version: APP_VERSION, url: `${location.origin}${location.pathname}`, userAgent: navigator.userAgent, viewport: { width: innerWidth, height: innerHeight } },
         theme: theme || 'general', environment, displayPreferences: readAvgDisplay(),
         resourcePacks: await listAvgArtPacks(), catalog: { scenes: catalog.scenes.length, portraits: catalog.portraits.length },
         latestTurn: { timelineMode: latest?.avgPresentation?.mode, diagnostic: latest?.avgPresentation?.diagnostic,

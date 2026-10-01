@@ -1,13 +1,15 @@
 {
   "name": "墨色江湖---无尽武林",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "stress:test": "node scripts/promptStressTest.js"
+    "stress:test": "node scripts/promptStressTest.js",
+    "check:release": "node scripts/checkRelease.mjs",
+    "prebuild": "npm run check:release"
   },
   "dependencies": {
     "fflate": "^0.8.2",

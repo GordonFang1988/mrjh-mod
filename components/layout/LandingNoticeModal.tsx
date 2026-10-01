@@ -11,21 +11,24 @@ const getTodayKey = () => {
     return `${year}-${month}-${day}:${NOTICE_VERSION}`;
 };
 
-const LandingNoticeModal: React.FC = () => {
+const LandingNoticeModal: React.FC<{ onDismiss?: () => void }> = ({ onDismiss }) => {
     const [open, setOpen] = React.useState(false);
     const [hideToday, setHideToday] = React.useState(false);
 
     React.useEffect(() => {
         if (typeof window === 'undefined') return;
-        const dismissedDate = window.localStorage.getItem(NOTICE_STORAGE_KEY);
+        let dismissedDate: string | null = null;
+        try { dismissedDate = window.localStorage.getItem(NOTICE_STORAGE_KEY); } catch { /* Show notice without storage. */ }
         setOpen(dismissedDate !== getTodayKey());
+        if (dismissedDate === getTodayKey()) onDismiss?.();
     }, []);
 
     const close = () => {
         if (hideToday && typeof window !== 'undefined') {
-            window.localStorage.setItem(NOTICE_STORAGE_KEY, getTodayKey());
+            try { window.localStorage.setItem(NOTICE_STORAGE_KEY, getTodayKey()); } catch { /* Dismiss for this visit. */ }
         }
         setOpen(false);
+        onDismiss?.();
     };
 
     if (!open) return null;

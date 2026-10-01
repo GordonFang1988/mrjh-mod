@@ -4,6 +4,8 @@ import GameButton from '../ui/GameButton';
 import { GitHubSyncButton } from '../features/Auth/GitHubSyncButton';
 import LandingNoticeModal from './LandingNoticeModal';
 import HomePixelBackground from './HomePixelBackground';
+import { APP_VERSION_LABEL } from '../../release/version';
+import { shouldShowDailyChangelog } from '../../release/dailyChangelog';
 
 const requestBrowserFullscreen = () => {
     const doc = document as Document & {
@@ -50,9 +52,10 @@ interface Props {
     onNovelDecomposition: () => void;
     onSettings: () => void;
     hasSave: boolean;
+    onChangelog: () => void;
 }
 
-const LandingPage: React.FC<Props> = ({ onStart, onLoad, onImageManager, onWorldbookManager, onNovelDecomposition, onSettings, hasSave }) => {
+const LandingPage: React.FC<Props> = ({ onStart, onLoad, onImageManager, onWorldbookManager, onNovelDecomposition, onSettings, hasSave, onChangelog }) => {
     return (
         <div className="h-full w-full flex flex-col items-center justify-center relative overflow-hidden bg-black z-40 rounded-xl">
             {/* Background Effects */}
@@ -67,7 +70,7 @@ const LandingPage: React.FC<Props> = ({ onStart, onLoad, onImageManager, onWorld
 
             {/* GitHub 云同步按钮 */}
             <GitHubSyncButton />
-            <LandingNoticeModal />
+            <LandingNoticeModal onDismiss={() => { if (shouldShowDailyChangelog()) onChangelog(); }} />
 
             {/* 全屏按钮 */}
             <button
@@ -145,8 +148,8 @@ const LandingPage: React.FC<Props> = ({ onStart, onLoad, onImageManager, onWorld
             </div>
 
             {/* Footer */}
-            <div className="absolute bottom-8 text-[10px] text-gray-600 font-mono tracking-[0.3em] opacity-60" style={{ fontFamily: 'var(--ui-等宽信息-font-family, inherit)', fontSize: 'var(--ui-等宽信息-font-size, 12px)', lineHeight: 'var(--ui-等宽信息-line-height, 1.45)' }}>
-                VER 0.0.1 ALPHA
+            <div className="absolute bottom-8 z-20 text-[10px] text-gray-400 font-mono tracking-[0.15em]" style={{ fontFamily: 'var(--ui-等宽信息-font-family, inherit)', fontSize: 'var(--ui-等宽信息-font-size, 12px)', lineHeight: 'var(--ui-等宽信息-line-height, 1.45)' }}>
+                <button type="button" className="relative z-10 text-wuxia-gold hover:underline" onClick={onChangelog}>{APP_VERSION_LABEL} · 更新日志</button>
             </div>
             
             {/* Ink Drops Decoration */}
