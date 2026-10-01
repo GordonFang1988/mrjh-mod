@@ -5,6 +5,7 @@ import type { 场景图片档案 } from '../../models/imageGeneration';
 import { isGeneralAvgAsset, normalizeAvgTheme } from './identity';
 import { AVG_PRESET_PACK } from './manifest';
 import { getAvgPackCatalog } from './packStore';
+import { readAvgSceneProfile } from './vocabulary';
 
 /** Existing project art is an engineering fixture until an art pack is approved. */
 export const ENGINEERING_AVG_SCENES: AvgSceneAsset[] = [
@@ -99,55 +100,16 @@ const resolveAsset = (profile: AvgSceneProfile, placeKey: string, assets: AvgSce
 const previousScenes = (history: 聊天记录结构[]): Map<string, AvgResolvedScene> => {
     const result = new Map<string, AvgResolvedScene>();
     for (const item of history) {
-        for (const scene of item.structuredResponse?.avgPresentation?.scenes || []) {
+        const presentation = item.structuredResponse?.avgPresentation;
+        const legacyFallback = presentation?.diagnostic === 'invalid-scene-timeline'
+            || (presentation?.diagnostic === 'no-scene-markers' && !item.structuredResponse?.avgSceneHints?.length);
+        for (const scene of presentation?.scenes || []) {
+            if (legacyFallback && !scene.reason.startsWith('manual-')) continue;
             if (scene.placeKey && !scene.placeKey.startsWith('transient:') && scene.assetId) result.set(scene.placeKey, scene);
         }
     }
     return result;
 };
-
-const matchesFinalLocation = (hint: AvgSceneHint, env: 环境信息结构): boolean => {
-    const location = hint.地点 || {};
-    const parentsMatch = keyFields.slice(0, 3).every(key =>
-        !location[key] || !env[key] || normalize(location[key]) === normalize(env[key]));
-    if (!parentsMatch) return false;
-    const sceneSpecific = normalize(location.具体地点);
-    const settledSpecific = normalize(env.具体地点);
-    if (!sceneSpecific || !settledSpecific || sceneSpecific === settledSpecific) return true;
-    // A water-surface shot from a boat and the settled boat are the same vantage point.
-    // Keep this exception narrow: cabins, docks and shores are different scenes.
-    return (hint.分类.空间 === '江面' || hint.分类.空间 === '海面')
-        && hint.分类.视点 === '舟上'
-        && /^(?:江面|海面|湖面|河面|水面|舟上|船上)$/.test(sceneSpecific)
-        && /[船舟舸艇筏]/.test(settledSpecific)
-        && !/[舱坞厂岸港]|码头|渡口/.test(settledSpecific);
-};
-
-/** Only classify explicit location words when the model omitted the scene protocol. */
-export const inferAvgSceneProfile = (env: { 具体地点?: unknown; 小地点?: unknown }): AvgSceneProfile => {
-    const specific = String(env.具体地点 || '');
-    const venue = String(env.小地点 || '');
-    const text = `${venue}/${specific}`;
-    const rules: Array<[RegExp, AvgSceneProfile['空间']]> = [
-        [/客房|客栈.*卧房/, '客栈客房'], [/客栈.*大堂|客栈.*大厅/, '客栈大堂'],
-        [/酒楼.*雅间|包厢/, '酒楼雅间'], [/酒楼.*大厅|酒楼.*大堂/, '酒楼大厅'],
-        [/公堂/, '衙门公堂'], [/牢房|牢狱/, '牢房'], [/铁匠铺.*内|铁匠铺$/, '铁匠铺内'],
-        [/医馆.*内|医馆$/, '医馆内'], [/卧室|卧房/, '民居卧室'], [/堂屋/, '民居堂屋'],
-        [/厨房|灶房/, '厨房'], [/书房/, '书房'], [/院落|庭院|小院/, '院落'],
-        [/甲板/, '舟船甲板'], [/船舱/, '船舱'], [/码头/, '码头'], [/渡口/, '渡口'],
-        [/洞内|洞穴/, '洞内'], [/树林|林中/, '树林'], [/竹林/, '竹林'], [/山顶/, '山顶'],
-        [/山腰/, '山腰'], [/山道/, '山道'], [/集市|市集/, '市集'],
-        [/巷道|巷口|巷子/, '巷道'], [/十字路口|街口|街道|大街|街\//, '城内街道']
-    ];
-    const space = rules.find(([pattern]) => pattern.test(text))?.[1];
-    return { 空间: space || '未知' };
-};
-
-const finalHint = (env: 环境信息结构): AvgSceneHint => ({
-    ref: 'final',
-    地点: Object.fromEntries(keyFields.map(key => [key, env[key] || ''])),
-    分类: inferAvgSceneProfile(env)
-});
 
 /** Freeze chosen resources onto the turn stored in history. No image generation occurs here. */
 export const buildAvgPresentation = (
@@ -157,16 +119,23 @@ export const buildAvgPresentation = (
 ): AvgPresentation => {
     const refs = logs.map(log => log.avgSceneRef).filter((value): value is string => !!value);
     const uniqueRefs = [...new Set(refs)];
-    const byRef = new Map((hints || []).map(hint => [hint.ref, hint]));
-    const finalRef = refs[refs.length - 1];
-    const finalScene = finalRef ? byRef.get(finalRef) : undefined;
-    const valid = uniqueRefs.length > 0 && logs.every(log => !!log.avgSceneRef && byRef.has(log.avgSceneRef))
-        && uniqueRefs.every(ref => byRef.has(ref)) && !!finalScene && matchesFinalLocation(finalScene, env);
-    const matchingFinalHint = [...(hints || [])].reverse().find(hint =>
-        !!avgPlaceKey(hint.地点) && matchesFinalLocation(hint, env));
-    const fallbackHint = matchingFinalHint
-        ? { ...finalHint(env), 分类: matchingFinalHint.分类.空间 === '未知' ? inferAvgSceneProfile(env) : matchingFinalHint.分类 } : finalHint(env);
-    const chosen = valid ? uniqueRefs.map(ref => byRef.get(ref)!) : [fallbackHint];
+    const byRef = new Map<string, AvgSceneHint>();
+    const refCounts = new Map<string, number>();
+    for (const hint of hints || []) {
+        if (!hint?.ref) continue;
+        refCounts.set(hint.ref, (refCounts.get(hint.ref) || 0) + 1);
+        const profile = readAvgSceneProfile(hint.分类);
+        if (profile) byRef.set(hint.ref, { ...hint, 分类: profile });
+    }
+    for (const [ref, count] of refCounts) if (count > 1) byRef.delete(ref);
+    const multi = uniqueRefs.length > 0;
+    const complete = multi && logs.every(log => !!log.avgSceneRef && byRef.has(log.avgSceneRef));
+    // Without markers only a single supplied scene is addressable. Never infer from a place name.
+    const singleHint = !multi && byRef.size === 1 ? [...byRef.values()][0] : undefined;
+    const chosen: AvgSceneHint[] = multi
+        ? uniqueRefs.map(ref => byRef.get(ref) || { ref, 分类: { 空间: '未知' } })
+        : [{ ref: 'final', 地点: singleHint?.地点 || Object.fromEntries(keyFields.map(key => [key, env[key] || ''])),
+            分类: singleHint?.分类 || { 空间: '未知' } }];
     const prior = previousScenes(history);
     const venueStyles = new Map<string, string>();
     for (const [place, binding] of prior) {
@@ -174,13 +143,13 @@ export const buildAvgPresentation = (
         if (style) venueStyles.set(place.split('/').slice(0, 3).join('/'), style);
     }
     const scenes = chosen.map((hint, index): AvgResolvedScene => {
-        const location = valid && hint.ref === finalRef
-            ? Object.fromEntries(keyFields.map(key => [key, hint.地点?.[key] || env[key] || '']))
-            : hint.地点;
-        const placeKey = avgPlaceKey(location) || (valid ? `transient:${hash(JSON.stringify(hint.分类))}:${index}` : avgPlaceKey(finalHint(env).地点));
+        const location = hint.地点;
+        const placeKey = avgPlaceKey(location) || `transient:${hash(JSON.stringify(hint.分类))}:${index}`;
         const label = keyFields.map(key => location?.[key]).filter(Boolean).join(' / ') || hint.分类.空间;
         const overrideId = overrides[placeKey];
-        const binding = overrideId ? undefined : prior.get(placeKey);
+        const previous = prior.get(placeKey);
+        const binding = !overrideId && (hint.分类.空间 !== '未知' || previous?.reason.startsWith('manual-'))
+            ? previous : undefined;
         const asset = overrideId
             ? assets.find(candidate => candidate.id === overrideId)
             : binding
@@ -198,8 +167,9 @@ export const buildAvgPresentation = (
     });
     return {
         schemaVersion: 1,
-        mode: valid ? 'multi' : 'final',
+        mode: multi ? 'multi' : 'final',
         scenes,
-        diagnostic: valid ? undefined : (uniqueRefs.length > 0 ? 'invalid-scene-timeline' : 'no-scene-markers')
+        diagnostic: multi ? complete ? undefined : 'incomplete-scene-timeline'
+            : singleHint ? undefined : byRef.size > 1 ? 'no-scene-markers' : 'missing-scene-fields'
     };
 };

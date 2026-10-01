@@ -4,6 +4,16 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-01', date: '2026年10月1日', updates: [{
+        id: '2026-10-01-v1.0.1', time: '16:00', version: 'v1.0.1',
+        title: '修复 AVG 场景分类与背景切换',
+        summary: '按剧情模型给出的场景字段匹配背景，修复捕房等室内地点被错配成街道的问题。',
+        items: [
+            '地点名称写法与最终游戏地点不同，不再导致整回合退回同一张背景；每个镜头继续使用模型提供的分类。',
+            '移除按地名关键词重新分类的回退逻辑；缺少场景字段、镜头引用或对应素材时显示中性背景，其他镜头继续播放。',
+            '保留模型输出的场景分类值，不因取值未被词表收录而丢弃整份场景信息。',
+            '读取旧存档时，可用回合保存的场景字段恢复此前自动降级的背景切换，保留玩家手工选定的背景。'
+        ]
+    }, {
         id: '2026-10-01-v1.0.0', time: '13:56', version: 'v1.0.0',
         title: '1.0.0 版本基线 · AVG 演出与存档兼容',
         summary: '将当前已完成的功能统一归入 1.0.0，并建立版本号与更新日志。',

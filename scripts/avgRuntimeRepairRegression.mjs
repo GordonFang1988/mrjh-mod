@@ -3,7 +3,7 @@ const source = String.raw`
 import assert from 'node:assert/strict';
 import { parseAvgManifest } from './services/avg/manifest';
 import { resolveAvgPortraits } from './services/avg/portraitResolver';
-import { inferAvgSceneProfile, buildAvgPresentation } from './services/avg/sceneResolver';
+import { buildAvgPresentation } from './services/avg/sceneResolver';
 const entry = (id, extra={}) => ({id,file:id+'.webp',version:1,gender:'男',ageRange:{min:18,max:34},visualAge:'young',
     portraitVerified:true,reusePolicy:'unique',profile:{视觉年龄:'young',身份类别:'仆役',服饰类别:'平民布衣'},...extra});
 const raw={version:1,portraits:[entry('worker'),entry('wu',{name:'武大郎',themeId:'shuihu-jinpingmei',
@@ -21,12 +21,10 @@ assert.equal(get(wu,[prior]).assetId,'wu');
 assert.equal(get({...wu,AVG美术选择:{source:'prefab',assetId:'worker',baseAssetId:'worker'}},[prior]).assetId,'worker');
 assert.equal(get({...yao,身份:'改做镖师'},[{structuredResponse:{avgPortraitBindings:{姚二郎:{npcId:'y',assetId:'worker',baseAssetId:'worker',reason:'first-match'}}}}]).assetId,'worker');
 const env={大地点:'京东东路',中地点:'清河县',小地点:'紫石街',具体地点:'十字路口'};
-assert.equal(inferAvgSceneProfile(env).空间,'城内街道');
-assert.equal(inferAvgSceneProfile({小地点:'秘密之所',具体地点:'无名处'}).空间,'未知');
 const asset={id:'street',version:1,image:'/street.webp',profile:{空间:'城内街道'}};
-assert.equal(buildAvgPresentation([{sender:'旁白',text:'开场'}],[],env,[],[asset]).scenes[0].assetId,'street');
-assert.equal(buildAvgPresentation([], [{ref:'s1',地点:env,分类:{空间:'未知'}}],env,[],[asset]).scenes[0].assetId,'street');
-console.log('Named metadata repair, saved generic recovery, numerical age limits, stable ordinary identity and missing scene protocol fallback: passed');
+assert.equal(buildAvgPresentation([{sender:'旁白',text:'开场'}],[],env,[],[asset]).scenes[0].assetId,undefined);
+assert.equal(buildAvgPresentation([], [{ref:'s1',地点:env,分类:{空间:'未知'}}],env,[],[asset]).scenes[0].assetId,undefined);
+console.log('Named metadata repair, saved generic recovery, numerical age limits, stable ordinary identity and missing scene fields remain neutral: passed');
 `;
 const result=await build({stdin:{contents:source,loader:'ts',resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',write:false,logLevel:'silent'});
 await import('data:text/javascript;base64,'+Buffer.from(result.outputFiles[0].text).toString('base64'));

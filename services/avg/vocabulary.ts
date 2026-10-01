@@ -45,6 +45,7 @@ export const AVG_FEATURES = ['桌椅', '柜台', '床榻', '书架', '佛像', '
 const has = (values: readonly string[], value: unknown): value is string => typeof value === 'string' && values.includes(value);
 const read = (values: readonly string[], value: unknown): string | undefined => has(values, value) && value !== '未知' ? value : undefined;
 
+/** Art manifests use the shared vocabulary; this does not validate a model's judgment. */
 export const normalizeAvgProfile = (raw: unknown): AvgSceneProfile | null => {
     if (!raw || typeof raw !== 'object') return null;
     const item = raw as Record<string, unknown>;
@@ -68,25 +69,45 @@ export const normalizeAvgProfile = (raw: unknown): AvgSceneProfile | null => {
     };
 };
 
+/** Read model fields without replacing or rejecting their classification values. */
+export const readAvgSceneProfile = (raw: unknown): AvgSceneProfile | null => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const item = raw as Record<string, unknown>;
+    const text = (value: unknown): string | undefined => typeof value === 'string' && value.trim() ? value.trim() : undefined;
+    const space = text(item.空间);
+    if (!space) return null;
+    const profile: AvgSceneProfile = { 空间: space };
+    const fields = ['地域', '地理环境', '植被', '地表', '水域', '视点', '场所体系', '场所功能', '装潢档次', '完好程度', '空间规模'] as const;
+    for (const field of fields) {
+        const value = text(item[field]);
+        if (value) profile[field] = value;
+    }
+    if (Array.isArray(item.显著要素)) {
+        profile.显著要素 = [...new Set(item.显著要素.map(text).filter((value): value is string => !!value))];
+    }
+    return profile;
+};
+
 export const normalizeAvgHints = (raw: unknown): AvgSceneHint[] => {
     if (!raw || typeof raw !== 'object') return [];
     const item = raw as Record<string, unknown>;
-    if (item.词表版本 !== AVG_VOCABULARY_VERSION || !Array.isArray(item.场景)) return [];
-    const refs = new Set<string>();
+    if (!Array.isArray(item.场景)) return [];
+    const refCounts = new Map<string, number>();
     const result: AvgSceneHint[] = [];
     for (const entry of item.场景.slice(0, 12)) {
-        if (!entry || typeof entry !== 'object') return [];
+        if (!entry || typeof entry !== 'object') continue;
         const scene = entry as Record<string, unknown>;
         const ref = typeof scene.ref === 'string' ? scene.ref.trim() : '';
-        const profile = normalizeAvgProfile(scene.分类);
-        if (!/^s[1-9][0-9]?$/.test(ref) || refs.has(ref) || !profile) return [];
-        refs.add(ref);
+        if (ref) refCounts.set(ref, (refCounts.get(ref) || 0) + 1);
+        const profile = readAvgSceneProfile(scene.分类);
+        if (!ref || !profile) continue;
         const location = scene.地点 && typeof scene.地点 === 'object'
             ? Object.fromEntries(Object.entries(scene.地点).filter(([, value]) => typeof value === 'string' && value.trim()).map(([key, value]) => [key, String(value).trim().slice(0, 100)]))
             : undefined;
         result.push({ ref, 地点: location, 分类: profile });
     }
-    return result;
+    // Duplicate definitions cannot be addressed unambiguously; other refs remain usable.
+    return result.filter(scene => refCounts.get(scene.ref) === 1);
 };
 
 /** Kept separate from user editable prompt slots. */

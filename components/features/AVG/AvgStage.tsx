@@ -76,7 +76,8 @@ const AvgStage: React.FC<Props> = ({ isLatest = false, logs, presentation, portr
     const safeIndex = Math.min(index, Math.max(0, steps.length - 1));
     const step = steps[safeIndex];
     const sceneRef = presentation?.mode === 'multi' ? step?.avgSceneRef : 'final';
-    const scene = presentation?.scenes.find(item => item.ref === sceneRef) || presentation?.scenes[0];
+    const scene = presentation?.scenes.find(item => item.ref === sceneRef)
+        || (presentation?.mode === 'multi' ? undefined : presentation?.scenes[0]);
     const archived = scene?.assetId?.startsWith('archive:')
         ? sceneArchive?.生图历史?.find(item => item.id === scene.assetId?.slice('archive:'.length))
         : undefined;

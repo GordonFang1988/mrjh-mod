@@ -1,9 +1,9 @@
-import type { NPC结构, 聊天记录结构 } from '../../types';
-import type { AvgPortraitAsset, AvgPortraitBinding } from '../../models/avg';
+import type { GameResponse, NPC结构, 聊天记录结构 } from '../../types';
+import type { AvgPortraitAsset, AvgPortraitBinding, AvgSceneAsset } from '../../models/avg';
 import { avgBindingForAsset, avgSamePersonOptions, isAvgBasePortrait } from './identity';
 import { findUniqueLegacyAvgAsset, getAvgPackImageBlob, isAvgPackImage, loadAvgPackCatalog } from './packStore';
 import { getAvgPortraitAssets, resolveAvgPortraits } from './portraitResolver';
-import { buildAvgPresentation, sceneAssetsFromArchive, inferAvgSceneProfile } from './sceneResolver';
+import { buildAvgPresentation, sceneAssetsFromArchive } from './sceneResolver';
 import type { 场景图片档案 } from '../../models/imageGeneration';
 
 const localId = (id?: string): string | undefined => id?.slice(id.lastIndexOf(':') + 1);
@@ -37,6 +37,19 @@ export const replacementForMissingPortrait = (
     const base = bases[0];
     const choices = avgSamePersonOptions(avgBindingForAsset(npc.id, base, 'existing-binding'), assets);
     return choices.find(asset => asset.portraitVerified && age >= asset.ageRange.min && age <= asset.ageRange.max && localId(asset.id) === localId(binding.assetId)) || base;
+};
+
+/** Rebuild old automatic fallbacks from the saved model fields; explicit choices stay frozen. */
+export const restoreStructuredAvgScenes = (
+    response: GameResponse, history: 聊天记录结构[], assets: AvgSceneAsset[], theme?: string
+) => {
+    const presentation = response.avgPresentation;
+    if (!presentation || !['invalid-scene-timeline', 'no-scene-markers'].includes(presentation.diagnostic || '')
+        || presentation.scenes.some(scene => scene.reason.startsWith('manual-'))) return presentation;
+    const parts = (presentation.scenes.at(-1)?.placeKey || '').split('/');
+    const env = { 大地点: parts[0] || '', 中地点: parts[1] || '', 小地点: parts[2] || '', 具体地点: parts[3] || '' };
+    const restored = buildAvgPresentation(response.logs || [], response.avgSceneHints, env as any, history, assets, {}, theme);
+    return JSON.stringify(restored) === JSON.stringify(presentation) ? presentation : restored;
 };
 
 export const recoverMissingAvgArt = async (
@@ -83,20 +96,22 @@ export const recoverMissingAvgArt = async (
                 bindings[sender] = next; changed = true; repaired += 1;
             }
         }
-        let presentation = response.avgPresentation;
+        let presentation = restoreStructuredAvgScenes(response, repairedHistory, sceneAssets, theme);
+        if (presentation !== response.avgPresentation) { changed = true; repaired += 1; }
         if (presentation) {
             const scenes = [];
             for (const scene of presentation.scenes) {
-                const recoverNeutral = !scene.assetId && !scene.image && scene.reason === 'neutral-background';
+                const recoverNeutral = !scene.assetId && !scene.image && scene.reason === 'neutral-background'
+                    && scene.profile.空间 !== '未知';
                 if (!recoverNeutral && !await imageMissing(scene.image)) { scenes.push(scene); continue; }
                 const exact = findUniqueLegacyAvgAsset(scene.assetId, sceneAssets);
                 if (exact) {
-                    scenes.push({...scene,assetId:exact.id,image:exact.image,version:exact.version,profile:exact.profile});
+                    scenes.push({...scene,assetId:exact.id,image:exact.image,version:exact.version});
                     changed = true; repaired += 1; continue;
                 }
                 const parts = scene.placeKey.split('/');
                 const env = {大地点:parts[0] || '',中地点:parts[1] || '',小地点:parts[2] || '',具体地点:parts[3] || ''};
-                const hint = {ref:'final',地点:env,分类:scene.profile.空间 === '未知' ? inferAvgSceneProfile(env) : scene.profile};
+                const hint = {ref:'final',地点:env,分类:scene.profile};
                 const replacement = buildAvgPresentation([], [hint], env as any, repairedHistory, sceneAssets, {}, theme).scenes[0];
                 scenes.push({...replacement,ref:scene.ref,placeKey:scene.placeKey,label:scene.label});
                 changed = true; repaired += 1;

@@ -32,7 +32,7 @@ assert.equal(presentation.mode, 'multi');
 assert.deepEqual(presentation.scenes.map(scene => scene.assetId), ['inn','river']);
 const finalOnlyWithoutMarkers = buildAvgPresentation(parsed.logs.map(log => ({...log, avgSceneRef:undefined})), parsed.avgSceneHints, env, [], assets);
 assert.equal(finalOnlyWithoutMarkers.mode, 'final');
-assert.equal(finalOnlyWithoutMarkers.scenes[0].assetId, 'river');
+assert.equal(finalOnlyWithoutMarkers.scenes[0].assetId, undefined);
 assert.equal(finalOnlyWithoutMarkers.scenes[0].ref, 'final');
 
 const returnText = '<正文>\n<镜头 ref="s1"/>\n【旁白】客栈里商议行程。\n<镜头 ref="s2"/>\n【旁白】乘船驶上江面。\n<镜头 ref="s1"/>\n【旁白】回到同一间客栈。\n</正文>\n<短期记忆>往返江面。</短期记忆>\n<演出场景>{"词表版本":"' + AVG_VOCABULARY_VERSION + '","场景":[{"ref":"s1","地点":{"大地点":"江南","中地点":"苏州","小地点":"客栈","具体地点":"大堂"},"分类":{"空间":"客栈大堂","地域":"江南"}},{"ref":"s2","地点":{"大地点":"江南","中地点":"苏州","具体地点":"江面"},"分类":{"空间":"江面","地域":"江南"}}]}</演出场景>';
@@ -57,15 +57,15 @@ assert.equal(buildAvgPresentation(parsed.logs,parsed.avgSceneHints,env,[],catalo
 assert.equal(buildAvgPresentation(parsed.logs,parsed.avgSceneHints,env,history,catalog,{'江南/苏州/渡口/江面':'archive:untagged'}).scenes[1].assetId,'archive:untagged');
 assert.equal(buildAvgPresentation(parsed.logs,parsed.avgSceneHints,env,history,catalog,{'江南/苏州/渡口/江面':'neutral'}).scenes[1].assetId,undefined);
 const wrongFinal = buildAvgPresentation(parsed.logs, parsed.avgSceneHints, {...env,具体地点:'岸边'}, [], assets);
-assert.equal(wrongFinal.mode,'final');
-assert.equal(wrongFinal.scenes.length,1);
+assert.equal(wrongFinal.mode,'multi');
+assert.deepEqual(wrongFinal.scenes.map(scene => scene.assetId),['inn','river']);
 const boatHints = parsed.avgSceneHints.map(hint => hint.ref === 's2'
   ? {...hint, 地点:{...hint.地点,小地点:'江面'}, 分类:{...hint.分类,视点:'舟上'}} : hint);
 const settledBoat = {...env,小地点:'江面',具体地点:'乌篷船'};
 assert.equal(buildAvgPresentation(parsed.logs,boatHints,settledBoat,[],assets).mode,'multi');
-assert.equal(buildAvgPresentation(parsed.logs,boatHints,{...settledBoat,具体地点:'船舱'},[],assets).mode,'final');
-assert.equal(buildAvgPresentation(parsed.logs,boatHints,{...settledBoat,小地点:'渡口'},[],assets).mode,'final');
-assert.deepEqual(normalizeAvgHints({词表版本:AVG_VOCABULARY_VERSION,场景:[{ref:'s1',分类:{空间:'不存在'}}]}), []);
+assert.equal(buildAvgPresentation(parsed.logs,boatHints,{...settledBoat,具体地点:'船舱'},[],assets).mode,'multi');
+assert.equal(buildAvgPresentation(parsed.logs,boatHints,{...settledBoat,小地点:'渡口'},[],assets).mode,'multi');
+assert.equal(normalizeAvgHints({词表版本:AVG_VOCABULARY_VERSION,场景:[{ref:'s1',分类:{空间:'不存在'}}]})[0].分类.空间, '不存在');
 const barbicanEnv = {...env, 小地点:'府城南门', 具体地点:'瓮城内'};
 const barbicanHints = normalizeAvgHints({词表版本:AVG_VOCABULARY_VERSION,场景:[{
   ref:'s1',地点:{大地点:'江南',中地点:'苏州',小地点:'府城南门',具体地点:'瓮城内'},
