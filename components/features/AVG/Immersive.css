@@ -1,0 +1,59 @@
+.avg-game-immersive { position: fixed; inset: 0; width: 100vw; height: 100dvh; border-radius: 0; overflow: visible; }
+.avg-game-immersive .avg-game-top { padding-bottom: 16px; }
+.avg-game-immersive .avg-game-top > div > div { background: transparent; }
+.avg-game-immersive > .z-10,
+.avg-game-immersive .relative.z-0,
+.avg-game-immersive .relative.z-10 { z-index: auto; }
+.avg-immersive-stage {
+    top: var(--avg-top-height, 70px);
+    bottom: var(--avg-input-height, 130px);
+    height: auto;
+}
+.avg-game-immersive .avg-game-top {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 110;
+    margin: 0;
+    background: rgba(8, 10, 13, .78);
+    backdrop-filter: blur(8px);
+}
+.avg-game-immersive .avg-game-input {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 110;
+    background: rgba(8, 10, 13, .92);
+    max-height: 40dvh;
+    overflow-y: auto;
+}
+.avg-game-immersive .avg-game-left,
+.avg-game-immersive .avg-game-right {
+    display: flex;
+    position: fixed;
+    top: var(--avg-top-height, 70px);
+    bottom: var(--avg-input-height, 130px);
+    width: min(85vw, 320px);
+    height: auto;
+    z-index: 120;
+    overflow-y: auto;
+    visibility: hidden;
+    transition: transform 200ms ease, visibility 200ms;
+}
+.avg-game-immersive .avg-game-left { left: 0; transform: translateX(-100%); }
+.avg-game-immersive .avg-game-right { right: 0; transform: translateX(100%); }
+.avg-game-immersive .avg-game-left[data-open='true'],
+.avg-game-immersive .avg-game-right[data-open='true'] { transform: translateX(0); visibility: visible; }
+.avg-edge-trigger {
+    position: fixed;
+    top: 48%;
+    width: 12px;
+    height: 68px;
+    z-index: 130;
+    color: #ddba66;
+    background: rgba(8, 10, 13, .55);
+    border: 1px solid #ddba6666;
+}
+.avg-edge-left { left: 0; border-radius: 0 5px 5px 0; }
+.avg-edge-right { right: 0; border-radius: 5px 0 0 5px; }
+@media (prefers-reduced-motion: reduce) {
+    .avg-game-immersive .avg-game-left, .avg-game-immersive .avg-game-right { transition: none; }
+}

@@ -1,3 +1,6 @@
+import { useAvgImmersive, setAvgImmersive } from './services/avg/immersive';
+import DiagnosticExport from './components/features/AVG/DiagnosticExport';
+import './components/features/AVG/Immersive.css';
 import React from 'react';
 import TopBar from './components/layout/TopBar';
 import LeftPanel from './components/layout/LeftPanel';
@@ -89,6 +92,33 @@ const 懒加载边界: React.FC<{ children: React.ReactNode }> = ({ children }) 
 const App: React.FC = () => {
     const { state, meta, setters, actions } = useGame();
     React.useEffect(() => { void loadAvgPackCatalog().catch(() => undefined); }, []);
+    const avgImmersive = useAvgImmersive();
+    const [avgRail, setAvgRail] = React.useState<'left' | 'right' | null>(null);
+    const [showDiagnostic, setShowDiagnostic] = React.useState(false);
+    React.useEffect(() => {
+        if (!avgImmersive.active) { setAvgRail(null); return; }
+        const measure = () => {
+            const top = document.querySelector('[data-avg-game-top]')?.getBoundingClientRect().height || 70;
+            const input = document.querySelector('[data-avg-game-input]')?.getBoundingClientRect().height || 130;
+            document.documentElement.style.setProperty('--avg-top-height', `${top}px`);
+            document.documentElement.style.setProperty('--avg-input-height', `${input}px`);
+        };
+        const observer = new ResizeObserver(measure);
+        for (const selector of ['[data-avg-game-top]', '[data-avg-game-input]']) {
+            const element = document.querySelector(selector); if (element) observer.observe(element);
+        }
+        measure();
+        const move = (event: PointerEvent) => {
+            const railWidth = Math.min(window.innerWidth * .85, 320);
+            setAvgRail(previous => event.clientX <= 12 ? 'left' : event.clientX >= window.innerWidth - 12 ? 'right'
+                : previous === 'left' && event.clientX <= railWidth ? previous
+                : previous === 'right' && event.clientX >= window.innerWidth - railWidth ? previous : null);
+        };
+        const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !document.fullscreenElement) setAvgImmersive('', false); };
+        window.addEventListener('pointermove', move); window.addEventListener('keydown', escape);
+        return () => { observer.disconnect(); window.removeEventListener('pointermove', move); window.removeEventListener('keydown', escape); };
+    }, [avgImmersive.active]);
+
     const [showCharacter, setShowCharacter] = React.useState(false);
     const [showImageManager, setShowImageManager] = React.useState(false);
     const [showWorldbookManager, setShowWorldbookManager] = React.useState(false);
@@ -678,6 +708,8 @@ const App: React.FC = () => {
         <MusicProvider visualConfig={state.visualConfig} onSaveVisual={actions.saveVisualSettings}>
             <div className="h-screen w-screen overflow-hidden bg-ink-black relative flex flex-col p-3 transition-colors duration-500" style={uiTextStyleVars}>
                 {fontFaceStyleText && <style>{fontFaceStyleText}</style>}
+                {showDiagnostic && <DiagnosticExport history={state.历史记录} social={state.社交} environment={state.环境} theme={state.gameConfig.AVG主题} archive={meta.sceneImageArchive} onClose={() => setShowDiagnostic(false)} />}
+
             
             {/* View Switching */}
             {state.view === 'home' && (
@@ -714,24 +746,29 @@ const App: React.FC = () => {
 
             {state.view === 'game' && (
                 /* Main Game Frame Container */
-                <div className="relative flex-1 flex flex-col w-full h-full rounded-2xl overflow-hidden bg-ink-black shadow-2xl">
+                <div data-avg-game-shell className={`relative flex-1 flex flex-col w-full h-full rounded-2xl overflow-hidden bg-ink-black shadow-2xl ${avgImmersive.active ? 'avg-game-immersive' : ''}`}>
 
+                    {avgImmersive.active && <>
+                        <button type="button" aria-label="展开左侧人物面板" className="avg-edge-trigger avg-edge-left" onPointerEnter={() => setAvgRail('left')} onClick={() => setAvgRail('left')}>‹</button>
+                        <button type="button" aria-label="展开右侧功能菜单" className="avg-edge-trigger avg-edge-right" onPointerEnter={() => setAvgRail('right')} onClick={() => setAvgRail('right')}>›</button>
+                    </>}
                     {/* 顶部导航栏 */}
-                    <div className="shrink-0 z-40 bg-ink-black/90 border-b border-wuxia-gold/20 shadow-[0_10px_30px_rgba(0,0,0,0.8)] relative rounded-t-xl overflow-visible mx-1 mt-1">
-                        <TopBar 
+                    <div data-avg-game-top className="avg-game-top flex items-center shrink-0 z-40 bg-ink-black/90 border-b border-wuxia-gold/20 shadow-[0_10px_30px_rgba(0,0,0,0.8)] relative rounded-t-xl overflow-visible mx-1 mt-1">
+                        <div className="flex-1 min-w-0"><TopBar
                             环境={state.环境} 
                             游戏初始时间={state.游戏初始时间}
                             timeFormat={state.visualConfig.时间显示格式}
                             festivals={state.festivals}
                             visualConfig={state.visualConfig}
-                        />
+                        /></div>
+                        <button type="button" className="shrink-0 rounded border border-wuxia-gold/40 bg-black/50 px-2 py-1 mr-2 text-xs text-wuxia-gold" onClick={() => setShowDiagnostic(true)}>诊断导出</button>
                     </div>
 
                     {/* 中间主要互动区域 */}
                     <div className="flex-1 flex overflow-hidden relative z-10 mx-1 mb-1">
                         
                         {/* 左侧栏 */}
-                        <div className="hidden md:block w-[14.285714%] h-full relative z-20 bg-ink-black/95 border-r border-wuxia-gold/20 flex flex-col shadow-[10px_0_20px_rgba(0,0,0,0.5)]">
+                        <div data-open={avgRail === 'left'} className="avg-game-left hidden md:block w-[14.285714%] h-full relative z-20 bg-ink-black/95 border-r border-wuxia-gold/20 flex flex-col shadow-[10px_0_20px_rgba(0,0,0,0.5)]">
                             <LeftPanel
                                 角色={state.角色}
                                 onOpenCharacter={openCharacter}
@@ -825,7 +862,7 @@ const App: React.FC = () => {
                                     suppressAutoScrollToken={meta.chatScrollSuppressToken}
                                     forceScrollToken={meta.chatForceScrollToken}
                                 />
-                                <InputArea 
+                                <div data-avg-game-input className="avg-game-input"><InputArea
                                     onSend={actions.handleSend} 
                                     onStop={actions.handleStop}
                                     onCancelVariableGeneration={actions.handleCancelVariableGeneration}
@@ -841,7 +878,7 @@ const App: React.FC = () => {
                                     openingPlanningProgress={meta.openingPlanningProgress}
                                     openingVariableGenerationProgress={meta.openingVariableGenerationProgress}
                                     options={currentOptions}
-                                />
+                                /></div>
                             </div>
                             {sceneQuickGenToastVisible && (
                                 <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center">
@@ -853,7 +890,7 @@ const App: React.FC = () => {
                         </div>
 
                         {/* 右侧栏 */}
-                        <div className="hidden md:block w-[14.285714%] h-full relative z-20 bg-ink-black/95 border-l border-wuxia-gold/20 flex flex-col shadow-[-10px_0_20px_rgba(0,0,0,0.5)]">
+                        <div data-open={avgRail === 'right'} className="avg-game-right hidden md:block w-[14.285714%] h-full relative z-20 bg-ink-black/95 border-l border-wuxia-gold/20 flex flex-col shadow-[-10px_0_20px_rgba(0,0,0,0.5)]">
                             <RightPanel 
                                 onOpenSettings={openSettings} 
                                 onOpenInventory={openInventory}

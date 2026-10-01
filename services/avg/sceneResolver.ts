@@ -123,10 +123,30 @@ const matchesFinalLocation = (hint: AvgSceneHint, env: 环境信息结构): bool
         && !/[舱坞厂岸港]|码头|渡口/.test(settledSpecific);
 };
 
+/** Only classify explicit location words when the model omitted the scene protocol. */
+export const inferAvgSceneProfile = (env: { 具体地点?: unknown; 小地点?: unknown }): AvgSceneProfile => {
+    const specific = String(env.具体地点 || '');
+    const venue = String(env.小地点 || '');
+    const text = `${venue}/${specific}`;
+    const rules: Array<[RegExp, AvgSceneProfile['空间']]> = [
+        [/客房|客栈.*卧房/, '客栈客房'], [/客栈.*大堂|客栈.*大厅/, '客栈大堂'],
+        [/酒楼.*雅间|包厢/, '酒楼雅间'], [/酒楼.*大厅|酒楼.*大堂/, '酒楼大厅'],
+        [/公堂/, '衙门公堂'], [/牢房|牢狱/, '牢房'], [/铁匠铺.*内|铁匠铺$/, '铁匠铺内'],
+        [/医馆.*内|医馆$/, '医馆内'], [/卧室|卧房/, '民居卧室'], [/堂屋/, '民居堂屋'],
+        [/厨房|灶房/, '厨房'], [/书房/, '书房'], [/院落|庭院|小院/, '院落'],
+        [/甲板/, '舟船甲板'], [/船舱/, '船舱'], [/码头/, '码头'], [/渡口/, '渡口'],
+        [/洞内|洞穴/, '洞内'], [/树林|林中/, '树林'], [/竹林/, '竹林'], [/山顶/, '山顶'],
+        [/山腰/, '山腰'], [/山道/, '山道'], [/集市|市集/, '市集'],
+        [/巷道|巷口|巷子/, '巷道'], [/十字路口|街口|街道|大街|街\//, '城内街道']
+    ];
+    const space = rules.find(([pattern]) => pattern.test(text))?.[1];
+    return { 空间: space || '未知' };
+};
+
 const finalHint = (env: 环境信息结构): AvgSceneHint => ({
     ref: 'final',
     地点: Object.fromEntries(keyFields.map(key => [key, env[key] || ''])),
-    分类: { 空间: '未知' }
+    分类: inferAvgSceneProfile(env)
 });
 
 /** Freeze chosen resources onto the turn stored in history. No image generation occurs here. */
@@ -145,7 +165,7 @@ export const buildAvgPresentation = (
     const matchingFinalHint = [...(hints || [])].reverse().find(hint =>
         !!avgPlaceKey(hint.地点) && matchesFinalLocation(hint, env));
     const fallbackHint = matchingFinalHint
-        ? { ...finalHint(env), 分类: matchingFinalHint.分类 } : finalHint(env);
+        ? { ...finalHint(env), 分类: matchingFinalHint.分类.空间 === '未知' ? inferAvgSceneProfile(env) : matchingFinalHint.分类 } : finalHint(env);
     const chosen = valid ? uniqueRefs.map(ref => byRef.get(ref)!) : [fallbackHint];
     const prior = previousScenes(history);
     const venueStyles = new Map<string, string>();

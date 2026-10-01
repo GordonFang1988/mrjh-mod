@@ -3,6 +3,7 @@ import { GameResponse, NPC结构, 视觉设置结构, 场景图片档案 } from 
 import { NarratorRenderer, CharacterRenderer, JudgmentRenderer } from './MessageRenderers';
 import GameButton from '../../ui/GameButton';
 import AvgStage from '../AVG/AvgStage';
+import { useAvgImmersive } from '../../../services/avg/immersive';
 import { 构建区域文字样式 } from '../../../utils/visualSettings';
 
 interface Props {
@@ -59,6 +60,8 @@ const TurnItem: React.FC<Props> = ({
     const [polishError, setPolishError] = useState<string | null>(null);
     const [showOriginalBody, setShowOriginalBody] = useState(false);
     const [avgView, setAvgView] = useState(false);
+    const immersive = useAvgImmersive();
+    const showAvg = avgView || (isLatest && immersive.active && immersive.followLatest);
     const chatStyle = 构建区域文字样式(visualConfig, '聊天');
 
     type 思考阶段 = 'pre' | 'post';
@@ -517,7 +520,7 @@ const TurnItem: React.FC<Props> = ({
             )}
 
             <div className="mt-2 space-y-2">
-                {avgView ? <AvgStage logs={displayLogs} presentation={response.avgPresentation} portraitBindings={response.avgPortraitBindings} socialList={socialList} sceneArchive={sceneArchive} onSelectSceneImage={onAvgImageSelect} onSelectPortrait={onAvgPortraitSelect} /> : displayLogs.map((log, idx) => {
+                {showAvg ? <AvgStage isLatest={isLatest} logs={displayLogs} presentation={response.avgPresentation} portraitBindings={response.avgPortraitBindings} socialList={socialList} sceneArchive={sceneArchive} onSelectSceneImage={onAvgImageSelect} onSelectPortrait={onAvgPortraitSelect} /> : displayLogs.map((log, idx) => {
                     const matchedJudgeBlock = 判定日志索引映射[idx] >= 0 ? judgeBlocks[判定日志索引映射[idx]] : undefined;
                     if (log.sender === '旁白') return <NarratorRenderer key={idx} text={log.text} visualConfig={visualConfig} />;
                     if (判定前缀正则.test(log.sender || '')) {

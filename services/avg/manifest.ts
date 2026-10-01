@@ -81,7 +81,9 @@ export const parseAvgManifest = (raw: unknown, imageForFile: (file: string, id: 
             continue;
         }
         result.portraits.push({ id: common.id, image: common.image, version: common.version, legacyAssetIds: legacyIds(common.item.legacyAssetIds),
-            gender: item.gender, ageRange: { min: Number(ageMin), max: Number(ageMax) },
+            gender: item.gender, // Correct the shipped Wu Da-lang metadata for early-story saves at age 30.
+            // Other portraits retain their exact chronological age limits.
+            ageRange: { min: item.characterKey === 'shuihu_jinpingmei:wu-da-lang' && Number(ageMin) === 35 ? 30 : Number(ageMin), max: Number(ageMax) },
             visualAge: item.visualAge as AvgPortraitAsset['visualAge'],
             reusePolicy: item.reusePolicy, portraitVerified: true, styleFamily,
             roleTags: tags(item.roleTags), appearanceTags: tags(item.appearanceTags), profile,

@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useId } from 'react';
+import { useAvgImmersive, setAvgImmersive, exitAvgImmersiveOwner, isAvgInteractiveTarget } from '../../../services/avg/immersive';
 import { createPortal } from 'react-dom';
 import type { AvgPresentation, AvgPortraitBinding, GameLog, NPC结构, NPC生图结果, 场景图片档案 } from '../../../types';
 import { use图片资源回源预取 } from '../../../hooks/useImageAssetPrefetch';
@@ -7,10 +9,12 @@ import { getAvgPackImageBlob, isAvgPackImage } from '../../../services/avg/packS
 import { avgSamePersonOptions } from '../../../services/avg/identity';
 import { getAvgPortraitAssets } from '../../../services/avg/portraitResolver';
 import { portraitStageForStep } from './portraitStage';
+import { AvgPortraitViewer } from './AvgPortraitViewer';
 import './AvgStage.css';
 import { avgDisplayStyle, useAvgDisplay } from '../../../services/avg/displayPreferences';
 
 interface Props {
+    isLatest?: boolean;
     logs: GameLog[];
     presentation?: AvgPresentation;
     portraitBindings?: Record<string, AvgPortraitBinding>;
@@ -50,14 +54,22 @@ const useAvgPackImage = (source?: string): string => {
     return loaded.source === source ? loaded.url : '';
 };
 
-const AvgStage: React.FC<Props> = ({ logs, presentation, portraitBindings, socialList, sceneArchive, onSelectSceneImage, onSelectPortrait }) => {
+const AvgStage: React.FC<Props> = ({ isLatest = false, logs, presentation, portraitBindings, socialList, sceneArchive, onSelectSceneImage, onSelectPortrait }) => {
     const displayPreferences = useAvgDisplay();
     const [index, setIndex] = useState(0);
     const [failedImage, setFailedImage] = useState('');
     const [showPortraitPicker, setShowPortraitPicker] = useState(false);
     const [showImagePicker, setShowImagePicker] = useState(false);
     const [selectionError, setSelectionError] = useState('');
-    const [pageImmersive, setPageImmersive] = useState(false);
+    const [portraitPreview, setPortraitPreview] = useState<{ src: string; name: string } | null>(null);
+    const owner = useId();
+    const immersive = useAvgImmersive();
+    const pageImmersive = immersive.active && immersive.owner === owner;
+    const setPageImmersive = (value: boolean | ((previous: boolean) => boolean)) => setAvgImmersive(owner, typeof value === 'function' ? value(pageImmersive) : value, isLatest);
+    useEffect(() => () => exitAvgImmersiveOwner(owner), [owner]);
+    useEffect(() => {
+        if (isLatest && immersive.active && immersive.followLatest && immersive.owner !== owner) setAvgImmersive(owner, true, true);
+    }, [isLatest, immersive.active, immersive.followLatest, immersive.owner, owner]);
     const stageRef = useRef<HTMLDivElement>(null);
 
     const steps = useMemo(() => (logs || []).filter(item => item?.text?.trim()), [logs]);
@@ -106,6 +118,8 @@ const AvgStage: React.FC<Props> = ({ logs, presentation, portraitBindings, socia
 
     const move = (delta: number) => setIndex(value => Math.max(0, Math.min(steps.length - 1, value + delta)));
     const onKeyDown = (event: React.KeyboardEvent) => {
+        if (isAvgInteractiveTarget(event.target)) return;
+        if (event.repeat) return;
         if (event.key === 'Escape' && pageImmersive) {
             event.preventDefault(); setPageImmersive(false);
         } else if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
@@ -115,9 +129,12 @@ const AvgStage: React.FC<Props> = ({ logs, presentation, portraitBindings, socia
 
     if (!step) return <div className="rounded-xl border border-amber-500/30 p-6 text-gray-300">本回合暂无可播放正文。</div>;
 
-    const stageContent = <div style={avgDisplayStyle(displayPreferences)} ref={stageRef} tabIndex={0} onKeyDown={onKeyDown}
+    const stageContent = <div style={avgDisplayStyle(displayPreferences)} ref={stageRef} tabIndex={0} onKeyDown={onKeyDown} onClick={event => {
+            if (isAvgInteractiveTarget(event.target) || window.getSelection()?.toString()) return;
+            stageRef.current?.focus(); move(1);
+        }}
         aria-label="AVG 演出舞台，左右方向键翻页"
-        className={`${pageImmersive ? 'fixed inset-0 z-[3000] h-screen w-screen rounded-none' : 'relative w-full aspect-[16/10] min-h-[280px] rounded-xl'} overflow-hidden border border-amber-500/40 bg-slate-900 text-white outline-none focus-visible:ring-2 focus-visible:ring-amber-400 [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:rounded-none`}>
+        className={`${pageImmersive ? 'avg-immersive-stage fixed left-0 right-0 z-[100] rounded-none' : 'relative w-full aspect-[16/10] min-h-[280px] rounded-xl'} overflow-hidden border border-amber-500/40 bg-slate-900 text-white outline-none focus-visible:ring-2 focus-visible:ring-amber-400 [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:rounded-none`}>
         {image && <img key={image} src={image} alt={scene?.label || '场景背景'} onError={() => setFailedImage(image)} className="absolute inset-0 h-full w-full object-cover" />}
         {!image && <div className="absolute inset-0 bg-gradient-to-br from-slate-700 via-slate-900 to-black" />}
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/30" />
@@ -128,11 +145,9 @@ const AvgStage: React.FC<Props> = ({ logs, presentation, portraitBindings, socia
                 {onSelectSceneImage && <button type="button" className="rounded bg-black/60 px-2 py-1 hover:bg-black/80" onClick={() => setShowImagePicker(value => !value)}>选背景</button>}
                 <button type="button" className="rounded bg-black/60 px-2 py-1 hover:bg-black/80" onClick={() => { setPageImmersive(value => !value); stageRef.current?.focus(); }}>{pageImmersive ? '退出沉浸' : '页面沉浸'}</button>
                 <button type="button" className="rounded bg-black/60 px-2 py-1 hover:bg-black/80" onClick={() => {
-                    const stage = stageRef.current;
-                    if (typeof stage?.requestFullscreen === 'function') {
-                        void stage.requestFullscreen().catch(() => setPageImmersive(true));
-                    } else {
-                        setPageImmersive(true);
+                    setPageImmersive(true);
+                    if (typeof document.documentElement.requestFullscreen === 'function') {
+                        void document.documentElement.requestFullscreen().catch(() => undefined);
                     }
                     stageRef.current?.focus();
                 }}>全屏</button>
@@ -170,7 +185,18 @@ const AvgStage: React.FC<Props> = ({ logs, presentation, portraitBindings, socia
             {selectionError && <p role="alert" className="mt-1 text-red-300">{selectionError}</p>}
         </div>}
         {actorImage && <img key={portraitSender} src={actorImage} alt={`${portraitSender} 立绘`}
+            role="button" tabIndex={0} data-avg-no-advance aria-label={`放大查看${portraitSender}立绘`}
+            title="点击放大查看立绘"
+            onClick={() => setPortraitPreview({ src: actorImage, name: portraitSender || '人物' })}
+            onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault(); event.stopPropagation();
+                    setPortraitPreview({ src: actorImage, name: portraitSender || '人物' });
+                }
+            }}
             data-avg-portrait-stage={portraitStage?.mode} className="avg-stage-portrait" />}
+        {portraitPreview && <AvgPortraitViewer src={portraitPreview.src} alt={`${portraitPreview.name} 立绘大图`}
+            title={portraitPreview.name} onClose={() => setPortraitPreview(null)} />}
         <div className="absolute z-10 left-2 right-2 bottom-2 sm:left-5 sm:right-5 sm:bottom-5 rounded-lg border border-amber-400/50 bg-black/85 backdrop-blur-sm min-h-[120px] max-h-[55%] flex flex-col">
             <div className="border-b border-amber-400/20 px-3 py-2 flex justify-between items-center gap-2">
                 <strong className="text-amber-200 text-sm truncate">{step.sender}</strong>
@@ -184,7 +210,7 @@ const AvgStage: React.FC<Props> = ({ logs, presentation, portraitBindings, socia
             </div>
         </div>
     </div>;
-    return pageImmersive ? createPortal(stageContent, document.body) : stageContent;
+    return pageImmersive ? createPortal(stageContent, document.querySelector('[data-avg-game-shell]') || document.body) : stageContent;
 };
 
 export default AvgStage;

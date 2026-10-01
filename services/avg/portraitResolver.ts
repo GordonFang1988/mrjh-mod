@@ -94,20 +94,25 @@ export const resolveAvgPortraits = (
         const age = visibleAge(npc);
         const actualAge = Number(npc.年龄);
         const bound = prior.get(npc.id);
-        if (bound && !(manual?.source === 'prefab' && bound.assetId?.startsWith('archive:'))) {
+        const characterKey = namedAvgCharacterKey(npc, assets, theme);
+        const selectedTheme = normalizeAvgTheme(theme);
+        const exactNamed = characterKey ? assets.filter(asset => asset.portraitVerified && isAvgBasePortrait(asset)
+            && asset.characterKey === characterKey && asset.gender === npc.性别
+            && Number.isFinite(actualAge) && actualAge >= asset.ageRange.min && actualAge <= asset.ageRange.max
+            && (asset.reusePolicy === 'crowd' || !occupied.has(asset.id) || bound?.baseAssetId === asset.id)
+            && (!asset.themeId || asset.themeId === selectedTheme)) : [];
+        // A named character incorrectly assigned generic art can recover its canonical face.
+        // User selections, generated art and established named faces remain authoritative.
+        const repairGenericNamed = !!bound?.assetId && !bound.characterKey && !bound.assetId.startsWith('archive:')
+            && bound.reason !== 'manual-prefab' && manual?.source !== 'prefab' && exactNamed.length > 0;
+
+        if (bound && !repairGenericNamed && !(manual?.source === 'prefab' && bound.assetId?.startsWith('archive:'))) {
             // This asset represents this NPC's established face. A later change of sect,
             // clothing, role, or age must never rematch them to a stranger's prefab.
             const image = bound.image || assets.find(asset => asset.id === bound.assetId)?.image;
             result[sender] = { ...bound, image, reason: 'existing-binding' };
             continue;
         }
-        const characterKey = namedAvgCharacterKey(npc, assets, theme);
-        const selectedTheme = normalizeAvgTheme(theme);
-        const exactNamed = characterKey ? assets.filter(asset => asset.portraitVerified && isAvgBasePortrait(asset)
-            && asset.characterKey === characterKey && asset.gender === npc.性别
-            && Number.isFinite(actualAge) && actualAge >= asset.ageRange.min && actualAge <= asset.ageRange.max
-            && (asset.reusePolicy === 'crowd' || !occupied.has(asset.id))
-            && (!asset.themeId || asset.themeId === selectedTheme)) : [];
         if (exactNamed.length) {
             const choice = exactNamed.sort((a, b) => a.id.localeCompare(b.id))[0];
             result[sender] = avgBindingForAsset(npc.id, choice, 'first-match');
@@ -117,7 +122,7 @@ export const resolveAvgPortraits = (
         const compatible = assets.filter(asset => isAvgBasePortrait(asset) && (!asset.characterKey || isGeneralAvgAsset(asset))
             && (isGeneralAvgAsset(asset) || asset.themeId === selectedTheme) && asset.portraitVerified && asset.gender === npc.性别
             && Number.isFinite(actualAge) && actualAge >= asset.ageRange.min && actualAge <= asset.ageRange.max
-            && !!age && asset.visualAge === age
+            && !!age
             && compatibleArchetype(appearance, asset)
             && (asset.reusePolicy === 'crowd' || !occupied.has(asset.id)));
         const themed = selectedTheme ? compatible.filter(asset => asset.themeId === selectedTheme) : [];
@@ -129,7 +134,7 @@ export const resolveAvgPortraits = (
         const source = `${npc.身份 || ''} ${npc.衣着风格 || ''} ${npc.外貌描写 || ''}`;
         const ranked = candidates.map(asset => {
             const assetProfile = asset.profile;
-            let score = Math.min(3, (asset.roleTags || []).filter(tag => source.includes(tag)).length) * 8
+            let score = (age === asset.visualAge ? 24 : -12) + Math.min(3, (asset.roleTags || []).filter(tag => source.includes(tag)).length) * 8
                 + Math.min(3, (asset.appearanceTags || []).filter(tag => source.includes(tag)).length) * 5;
             if (appearance?.身份类别 && assetProfile?.身份类别) {
                 score += appearance.身份类别 === assetProfile.身份类别 ? 32 : -8;

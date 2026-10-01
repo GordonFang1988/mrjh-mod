@@ -2,8 +2,8 @@ import type { NPC结构, 聊天记录结构 } from '../../types';
 import type { AvgPortraitAsset, AvgPortraitBinding } from '../../models/avg';
 import { avgBindingForAsset, avgSamePersonOptions, isAvgBasePortrait } from './identity';
 import { findUniqueLegacyAvgAsset, getAvgPackImageBlob, isAvgPackImage, loadAvgPackCatalog } from './packStore';
-import { getAvgPortraitAssets } from './portraitResolver';
-import { buildAvgPresentation, sceneAssetsFromArchive } from './sceneResolver';
+import { getAvgPortraitAssets, resolveAvgPortraits } from './portraitResolver';
+import { buildAvgPresentation, sceneAssetsFromArchive, inferAvgSceneProfile } from './sceneResolver';
 import type { 场景图片档案 } from '../../models/imageGeneration';
 
 const localId = (id?: string): string | undefined => id?.slice(id.lastIndexOf(':') + 1);
@@ -74,11 +74,21 @@ export const recoverMissingAvgArt = async (
             }
             changed = true; repaired += 1;
         }
+        const refreshed = resolveAvgPortraits(response.logs || [], social,
+            [...repairedHistory, { ...turn, structuredResponse: { ...response, avgPortraitBindings: bindings } }], portraits, theme);
+        for (const [sender, next] of Object.entries(refreshed)) {
+            const previous = bindings[sender];
+            const canRepair = !previous?.assetId || (next.characterKey && !previous.characterKey && previous.reason !== 'manual-prefab');
+            if (canRepair && next.assetId && next.assetId !== previous?.assetId) {
+                bindings[sender] = next; changed = true; repaired += 1;
+            }
+        }
         let presentation = response.avgPresentation;
         if (presentation) {
             const scenes = [];
             for (const scene of presentation.scenes) {
-                if (!await imageMissing(scene.image)) { scenes.push(scene); continue; }
+                const recoverNeutral = !scene.assetId && !scene.image && scene.reason === 'neutral-background';
+                if (!recoverNeutral && !await imageMissing(scene.image)) { scenes.push(scene); continue; }
                 const exact = findUniqueLegacyAvgAsset(scene.assetId, sceneAssets);
                 if (exact) {
                     scenes.push({...scene,assetId:exact.id,image:exact.image,version:exact.version,profile:exact.profile});
@@ -86,7 +96,7 @@ export const recoverMissingAvgArt = async (
                 }
                 const parts = scene.placeKey.split('/');
                 const env = {大地点:parts[0] || '',中地点:parts[1] || '',小地点:parts[2] || '',具体地点:parts[3] || ''};
-                const hint = {ref:'final',地点:env,分类:scene.profile};
+                const hint = {ref:'final',地点:env,分类:scene.profile.空间 === '未知' ? inferAvgSceneProfile(env) : scene.profile};
                 const replacement = buildAvgPresentation([], [hint], env as any, repairedHistory, sceneAssets, {}, theme).scenes[0];
                 scenes.push({...replacement,ref:scene.ref,placeKey:scene.placeKey,label:scene.label});
                 changed = true; repaired += 1;

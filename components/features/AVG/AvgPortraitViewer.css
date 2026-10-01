@@ -1,0 +1,122 @@
+.avg-portrait-viewer-backdrop {
+  position: fixed;
+  z-index: 2400;
+  inset: 0;
+  overflow: hidden;
+  background: rgba(1, 4, 6, 0.78);
+  backdrop-filter: blur(4px);
+}
+
+.avg-portrait-viewer-canvas {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: clamp(18px, 4vh, 48px) clamp(18px, 4vw, 64px) clamp(76px, 12vh, 118px);
+  touch-action: none;
+  user-select: none;
+}
+
+.avg-portrait-viewer-artwork {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(92vw, 1280px);
+  max-height: min(86dvh, 980px);
+  cursor: grab;
+  filter: drop-shadow(0 24px 34px rgba(0, 0, 0, 0.54));
+  transform-origin: center;
+  transition: transform 120ms ease-out;
+  user-select: none;
+}
+
+.avg-portrait-viewer-artwork:active {
+  cursor: grabbing;
+}
+
+.avg-portrait-viewer-close {
+  position: fixed;
+  z-index: 2;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(224, 232, 235, 0.52);
+  border-radius: 50%;
+  padding: 0 0 3px;
+  color: #f2f4f5;
+  background: rgba(7, 12, 15, 0.58);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
+  font-family: system-ui, sans-serif;
+  font-size: 34px;
+  font-weight: 300;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.avg-portrait-viewer-close:hover,
+.avg-portrait-viewer-close:focus-visible {
+  border-color: rgba(242, 215, 142, 0.92);
+  color: #ffe9ad;
+  background: rgba(25, 31, 34, 0.82);
+}
+
+.avg-portrait-viewer-zoom-controls {
+  position: fixed;
+  z-index: 2;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(420px, calc(100vw - 32px));
+  border: 1px solid rgba(213, 224, 228, 0.3);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #e3e8ea;
+  background: rgba(7, 12, 15, 0.62);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.34);
+  transform: translateX(-50%);
+  backdrop-filter: blur(8px);
+}
+
+.avg-portrait-viewer-zoom-controls button {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-height: 0;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  color: #f1d58e;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.avg-portrait-viewer-zoom-controls button:disabled {
+  opacity: 0.34;
+  cursor: default;
+}
+
+.avg-portrait-viewer-zoom-controls input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  accent-color: #b38a45;
+}
+
+.avg-portrait-viewer-zoom-controls output {
+  min-width: 48px;
+  color: #dfbd70;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
