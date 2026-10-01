@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { fetchApiModels } from '../../../services/ai/modelList';
 import { 接口设置结构, 单接口配置结构, 功能模型占位配置结构 } from '../../../types';
 import GameButton from '../../ui/GameButton';
 import ToggleSwitch from '../../ui/ToggleSwitch';
@@ -59,25 +60,10 @@ const VariableModelSettings: React.FC<Props> = ({ settings, onSave }) => {
             return null;
         }
         try {
-            const base = resolvedBaseUrl.replace(/\/+$/, '');
-            const normalized = base.replace(/\/v1$/i, '');
-            const candidateUrls = Array.from(new Set([
-                `${normalized}/v1/models`,
-                `${normalized}/models`,
-                `${base}/models`
-            ]));
-            for (const url of candidateUrls) {
-                const res = await fetch(url, {
-                    headers: {
-                        Authorization: `Bearer ${resolvedApiKey}`
-                    }
-                });
-                if (!res.ok) continue;
-                const data = await res.json();
-                if (data && Array.isArray(data.data)) {
-                    return data.data.map((m: any) => m?.id).filter(Boolean);
-                }
-            }
+            const models = await fetchApiModels(resolvedBaseUrl, {
+                headers: { Authorization: `Bearer ${resolvedApiKey}` }
+            }, { apiProfileId: activeConfig?.id });
+            if (models) return models;
             setMessage('获取失败：返回格式错误。');
             return null;
         } catch (e: any) {

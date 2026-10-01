@@ -1,4 +1,5 @@
 import type { 当前可用接口结构 } from '../../utils/apiConfig';
+import { getOpenCodeUrl, requestApi } from './apiTransport';
 
 export type 通用消息角色 = 'system' | 'user' | 'assistant';
 
@@ -552,13 +553,24 @@ const 构建OpenAI端点 = (
     const base = 清理末尾斜杠(baseUrlRaw || '');
     if (!base) return '';
 
+    const openCode = getOpenCodeUrl(base);
+    if (openCode) {
+        const pathname = openCode.pathname.replace(/\/+$/, '');
+        if (/^\/zen\/(?:go\/)?v1$/.test(pathname)) {
+            openCode.pathname = `${pathname}/chat/completions`;
+            return openCode.href;
+        }
+        // Preserve explicitly configured native endpoints; this transport does not change their protocol.
+        if (/\/(?:chat\/completions|responses|messages)$|\/models\/[^/]+$/.test(pathname)) return base;
+    }
+
     const lowerBase = base.toLowerCase();
     const lowerModel = (modelRaw || '').toLowerCase();
     const isZhipuSupplier = supplier === 'zhipu';
-    const looksLikeZhipu = isZhipuSupplier
+    const looksLikeZhipu = !openCode && (isZhipuSupplier
         || lowerBase.includes('open.bigmodel.cn')
         || lowerBase.includes('bigmodel.cn')
-        || lowerModel.includes('glm');
+        || lowerModel.includes('glm'));
 
     if (looksLikeZhipu) {
         if (/\/api\/paas\/v4\/chat\/completions$/i.test(base) || /\/chat\/completions$/i.test(base)) return base;
@@ -603,7 +615,7 @@ const 请求OpenAI家族文本 = async (
             body.response_format = { type: 'json_object' };
         }
 
-        const response = await fetch(endpoint, {
+        const response = await requestApi(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -611,7 +623,7 @@ const 请求OpenAI家族文本 = async (
             },
             body: JSON.stringify(body),
             signal
-        });
+        }, { apiProfileId: apiConfig.id });
 
         if (!response.ok) {
             const detail = await 读取失败详情文本(response, errorDetailLimit);

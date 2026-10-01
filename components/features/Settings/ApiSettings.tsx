@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { fetchApiModels } from '../../../services/ai/modelList';
 import {
     接口设置结构,
     接口供应商类型,
@@ -226,25 +227,10 @@ const ApiSettings: React.FC<Props> = ({ settings, onSave }) => {
             return null;
         }
         try {
-            const base = baseUrlForRequest.replace(/\/+$/, '');
-            const normalized = base.replace(/\/v1$/i, '');
-            const candidateUrls = Array.from(new Set([
-                `${normalized}/v1/models`,
-                `${normalized}/models`,
-                `${base}/models`
-            ]));
-            for (const url of candidateUrls) {
-                const res = await fetch(url, {
-                    headers: {
-                        Authorization: `Bearer ${apiKeyForRequest}`
-                    }
-                });
-                if (!res.ok) continue;
-                const data = await res.json();
-                if (data && Array.isArray(data.data)) {
-                    return data.data.map((m: any) => m?.id).filter(Boolean);
-                }
-            }
+            const models = await fetchApiModels(baseUrlForRequest, {
+                headers: { Authorization: `Bearer ${apiKeyForRequest}` }
+            }, { apiProfileId: activeConfig?.id });
+            if (models) return models;
             setMessage('获取失败：返回格式错误。');
             return null;
         } catch (e: any) {

@@ -4,6 +4,16 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-02', date: '2026年10月2日', updates: [{
+        id: '2026-10-02-v1.0.8', time: '00:56', version: 'v1.0.8',
+        title: 'OpenCode 请求自动经过现有代理',
+        summary: '填写原 OpenCode 地址即可使用代理，模型列表、主剧情和辅助请求统一处理。',
+        items: [
+            '最终请求 hostname 为 opencode.ai 时使用现有 Cloudflare 代理；其他服务商保持原行为，代理失败明确报错，不自动直连。',
+            '修复 OpenCode Go 的 GLM 模型被误拼成智谱端点的问题，保留显式填写的原生协议端点。',
+            '同一 API 档案的会话标识在重试和刷新后保持稳定，不改动旧 API 配置的导入导出格式。',
+            '保留请求体、输出上限、取消信号、流式解析及原重试策略，无需新增连接设置。'
+        ]
+    }, {
         id: '2026-10-02-v1.0.7', time: '00:49', version: 'v1.0.7',
         title: '修复缺少场景分类时的空白背景',
         summary: '模型漏场景字段时，可根据明确的具体地点选择相近素材，读档也可恢复此前的空白背景。',

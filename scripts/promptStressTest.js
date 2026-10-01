@@ -30,7 +30,7 @@ function checkFandomPromptAssembly() {
     {
       name: 'planning_prompt_chain',
       file: 'hooks/useGame/planningUpdateWorkflow.ts',
-      needles: ['同人设定摘要', '境界母板补丁', 'fandomEnabled: fandomPromptBundle.enabled']
+      needles: ['同人设定摘要', '境界母板补丁', 'const fandomEnabled = fandomPromptBundle.enabled;', 'fandomEnabled,']
     },
     {
       name: 'world_evolution_prompt_chain',

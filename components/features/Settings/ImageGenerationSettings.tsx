@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { fetchApiModels } from '../../../services/ai/modelList';
 import {
     接口设置结构,
     功能模型占位配置结构,
@@ -495,23 +496,10 @@ const ImageGenerationSettings: React.FC<Props> = ({ settings, onSave }) => {
         }
         try {
             if (targetBackend === 'novelai' && (key === '文生图模型使用模型' || key === '场景生图模型使用模型')) return NovelAI模型建议;
-            const base = resolvedBaseUrl.replace(/\/+$/, '');
-            const normalized = base.replace(/\/v1$/i, '');
-            const candidateUrls = Array.from(new Set([
-                `${normalized}/v1/models`,
-                `${normalized}/models`,
-                `${base}/models`
-            ]));
-            for (const url of candidateUrls) {
-                const res = await fetch(url, {
-                    headers: targetNeedsAuth ? { Authorization: `Bearer ${resolvedApiKey}` } : undefined
-                });
-                if (!res.ok) continue;
-                const data = await res.json();
-                if (data && Array.isArray(data.data)) {
-                    return data.data.map((m: any) => m?.id).filter(Boolean);
-                }
-            }
+            const models = await fetchApiModels(resolvedBaseUrl, {
+                headers: targetNeedsAuth ? { Authorization: `Bearer ${resolvedApiKey}` } : undefined
+            }, { apiProfileId: activeConfig?.id });
+            if (models) return models;
             setMessage(`获取模型列表失败：${resolvedBaseUrl}`);
             return null;
         } catch (e: any) {

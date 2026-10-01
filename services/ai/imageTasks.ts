@@ -1,5 +1,6 @@
 import { decompressSync, unzlibSync, unzipSync } from 'fflate';
 import type { 当前可用接口结构 } from '../../utils/apiConfig';
+import { requestApi } from './apiTransport';
 import type { 香闺秘档部位类型 } from '../../models/imageGeneration';
 import type { PNG解析参数结构, PNG画风预设来源类型, 角色锚点结构, 图片词组序列化策略类型 } from '../../models/system';
 import { 角色图片分词COT伪装历史消息提示词 } from '../../prompts/runtime/imageTokenizerCharacterCot';
@@ -1679,7 +1680,7 @@ const 执行ComfyUI生图 = async (
     const [width, height] = size.split('x').map((value) => Number(value));
     const workflow = 构建ComfyUI工作流(apiConfig.ComfyUI工作流JSON || '', prompt, negativePrompt, width, height, pngParams);
     const promptEndpoint = 构建图片端点(apiConfig.baseUrl, apiConfig.图片接口路径);
-    const enqueueResponse = await fetch(promptEndpoint, {
+    const enqueueResponse = await requestApi(promptEndpoint, {
         method: 'POST',
         headers: 构建生图请求头(apiConfig),
         body: JSON.stringify({
@@ -1687,7 +1688,7 @@ const 执行ComfyUI生图 = async (
             client_id: 'wuxia-web'
         }),
         signal
-    });
+    }, { apiProfileId: apiConfig.id });
     if (!enqueueResponse.ok) {
         const detail = await 读取失败详情文本(enqueueResponse, Number.POSITIVE_INFINITY);
         throw new 协议请求错误(`ComfyUI 请求失败: ${enqueueResponse.status}${detail ? ` - ${detail}` : ''}`, enqueueResponse.status, detail);
@@ -1700,11 +1701,11 @@ const 执行ComfyUI生图 = async (
 
     const historyEndpoint = `${baseUrl}/history/${encodeURIComponent(promptId)}`;
     while (true) {
-        const historyResponse = await fetch(historyEndpoint, {
+        const historyResponse = await requestApi(historyEndpoint, {
             method: 'GET',
             headers: 构建生图请求头(apiConfig),
             signal
-        });
+        }, { apiProfileId: apiConfig.id });
         if (historyResponse.ok) {
             const historyText = await historyResponse.text();
             const historyPayload = 解析可能是JSON字符串(historyText);
@@ -3461,12 +3462,12 @@ export const generateImageByPrompt = async (
 
     let response: Response;
     try {
-        response = await fetch(endpoint, {
+        response = await requestApi(endpoint, {
             method: 'POST',
             headers: 构建生图请求头(apiConfig),
             body: JSON.stringify(requestBody),
             signal
-        });
+        }, { apiProfileId: apiConfig.id });
     } catch (error: any) {
         if (backendType === 'novelai') {
             throw new Error(`NovelAI 请求失败：${error?.message || '网络异常'}。如果你在本地开发环境，请确认仍在通过 Vite dev server 访问，并使用 https://image.novelai.net 作为基础地址。`);
