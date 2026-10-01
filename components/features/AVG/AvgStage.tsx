@@ -197,7 +197,7 @@ const AvgStage: React.FC<Props> = ({ isLatest = false, logs, presentation, portr
             data-avg-portrait-stage={portraitStage?.mode} className="avg-stage-portrait" />}
         {portraitPreview && <AvgPortraitViewer src={portraitPreview.src} alt={`${portraitPreview.name} 立绘大图`}
             title={portraitPreview.name} onClose={() => setPortraitPreview(null)} />}
-        <div className="absolute z-10 left-2 right-2 bottom-2 sm:left-5 sm:right-5 sm:bottom-5 rounded-lg border border-amber-400/50 bg-black/85 backdrop-blur-sm min-h-[120px] max-h-[55%] flex flex-col">
+        <div className="avg-stage-dialogue absolute z-10 rounded-lg border border-amber-400/50 bg-black/85 backdrop-blur-sm min-h-[120px] max-h-[55%] flex flex-col">
             <div className="border-b border-amber-400/20 px-3 py-2 flex justify-between items-center gap-2">
                 <strong className="text-amber-200 text-sm truncate">{step.sender}</strong>
                 <span className="text-gray-400 text-xs shrink-0">{safeIndex + 1} / {steps.length}</span>

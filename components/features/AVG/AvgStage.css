@@ -1,3 +1,18 @@
+.avg-stage-dialogue {
+    right: 20px;
+    bottom: 20px;
+    width: min(60%, 52rem);
+}
+
+@media (max-width: 900px) {
+    .avg-stage-dialogue {
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+        width: auto;
+    }
+}
+
 .avg-stage-portrait {
     position: absolute;
     z-index: 1;
