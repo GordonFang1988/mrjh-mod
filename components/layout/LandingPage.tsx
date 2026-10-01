@@ -2,7 +2,6 @@
 import React from 'react';
 import GameButton from '../ui/GameButton';
 import { GitHubSyncButton } from '../features/Auth/GitHubSyncButton';
-import LandingNoticeModal from './LandingNoticeModal';
 import HomePixelBackground from './HomePixelBackground';
 import { APP_VERSION_LABEL } from '../../release/version';
 import { shouldShowDailyChangelog } from '../../release/dailyChangelog';
@@ -56,6 +55,10 @@ interface Props {
 }
 
 const LandingPage: React.FC<Props> = ({ onStart, onLoad, onImageManager, onWorldbookManager, onNovelDecomposition, onSettings, hasSave, onChangelog }) => {
+    React.useEffect(() => {
+        if (shouldShowDailyChangelog()) onChangelog();
+    }, [onChangelog]);
+
     return (
         <div className="h-full w-full flex flex-col items-center justify-center relative overflow-hidden bg-black z-40 rounded-xl">
             {/* Background Effects */}
@@ -70,7 +73,6 @@ const LandingPage: React.FC<Props> = ({ onStart, onLoad, onImageManager, onWorld
 
             {/* GitHub 云同步按钮 */}
             <GitHubSyncButton />
-            <LandingNoticeModal onDismiss={() => { if (shouldShowDailyChangelog()) onChangelog(); }} />
 
             {/* 全屏按钮 */}
             <button

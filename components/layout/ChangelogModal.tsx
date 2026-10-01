@@ -42,7 +42,7 @@ export function ChangelogModal({ onClose }: { onClose: () => void }) {
         <header className="changelog-header">
           <div>
             <p>RELEASE NOTES</p>
-            <h2 id="changelog-title">更新日志</h2>
+            <h2 id="changelog-title">更新日志与版权声明</h2>
           </div>
           <button type="button" aria-label="关闭更新日志" onClick={onClose}>
             ×
@@ -50,6 +50,13 @@ export function ChangelogModal({ onClose }: { onClose: () => void }) {
         </header>
 
         <article className="changelog-entry" aria-live="polite">
+          <section className="changelog-copyright" aria-labelledby="changelog-copyright-title">
+            <h3 id="changelog-copyright-title">版权声明</h3>
+            <p>
+              本站基于开源项目 MikuLXK/MoRanJiangHu 修改制作，原项目版权与开源协议归原作者及贡献者所有。
+              本修改版用于个人学习、体验与二次开发研究，请尊重原作者劳动成果。
+            </p>
+          </section>
           <div className="changelog-entry-heading">
             <time>{entry.date}</time>
             <span>{hasMultipleEntries ? `${entryIndex + 1} / ${releaseNotes.length}` : APP_VERSION_LABEL}</span>
@@ -71,8 +78,9 @@ export function ChangelogModal({ onClose }: { onClose: () => void }) {
           </div>
         </article>
 
-        {hasMultipleEntries ? (
-          <footer className="changelog-footer">
+        <footer className="changelog-footer">
+          {hasMultipleEntries ? (
+            <>
             <button type="button" disabled={!hasNewer} onClick={() => setEntryIndex((value) => value - 1)}>
               ← 较新一条
             </button>
@@ -91,8 +99,10 @@ export function ChangelogModal({ onClose }: { onClose: () => void }) {
             <button type="button" disabled={!hasOlder} onClick={() => setEntryIndex((value) => value + 1)}>
               较早一条 →
             </button>
-          </footer>
-        ) : null}
+            </>
+          ) : null}
+          <button type="button" className="changelog-dismiss" onClick={onClose}>我知道了</button>
+        </footer>
       </section>
     </div>, document.fullscreenElement || document.body
   );
