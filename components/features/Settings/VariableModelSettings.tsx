@@ -4,7 +4,8 @@ import { 接口设置结构, 单接口配置结构, 功能模型占位配置结�
 import GameButton from '../../ui/GameButton';
 import ToggleSwitch from '../../ui/ToggleSwitch';
 import InlineSelect from '../../ui/InlineSelect';
-import { 规范化接口设置 } from '../../../utils/apiConfig';
+import { 规范化接口设置, 获取当前接口配置, 获取功能基础接口配置, 功能使用旧独立接口, 记录接口档案模型列表 } from '../../../utils/apiConfig';
+import ApiProfileBinding from './ApiProfileBinding';
 
 interface Props {
     settings: 接口设置结构;
@@ -31,12 +32,11 @@ const VariableModelSettings: React.FC<Props> = ({ settings, onSave }) => {
     }, [form.activeConfigId, form.configs]);
 
     const 主剧情解析模型 = useMemo(() => {
-        return (activeConfig?.model || '').trim() || (form.功能模型占位.主剧情使用模型 || '').trim();
+        return (activeConfig?.model || form.功能模型占位.主剧情使用模型 || '').trim();
     }, [activeConfig?.model, form.功能模型占位.主剧情使用模型]);
 
     const 独立模型开启 = Boolean(form.功能模型占位.变量计算独立模型开关);
-    const 独立API地址 = (form.功能模型占位.变量计算API地址 || '').trim();
-    const 独立API密钥 = (form.功能模型占位.变量计算API密钥 || '').trim();
+    const 功能接口 = 独立模型开启 ? 获取功能基础接口配置(form, '变量计算') : 获取当前接口配置(form);
 
     const updatePlaceholder = <K extends keyof 功能模型占位配置结构>(key: K, value: 功能模型占位配置结构[K]) => {
         setForm((prev) => ({
@@ -49,12 +49,9 @@ const VariableModelSettings: React.FC<Props> = ({ settings, onSave }) => {
     };
 
     const fetchModelsFromCurrentConfig = async (): Promise<string[] | null> => {
-        const resolvedBaseUrl = 独立模型开启 && 独立API地址
-            ? 独立API地址
-            : (activeConfig?.baseUrl || '');
-        const resolvedApiKey = 独立模型开启 && 独立API密钥
-            ? 独立API密钥
-            : (activeConfig?.apiKey || '');
+        const requestConfig = 功能接口;
+        const resolvedBaseUrl = requestConfig?.baseUrl || '';
+        const resolvedApiKey = requestConfig?.apiKey || '';
         if (!resolvedApiKey || !resolvedBaseUrl) {
             setMessage('请先填写可用的 API Key 与 Base URL（支持独立变量接口）。');
             return null;
@@ -62,8 +59,13 @@ const VariableModelSettings: React.FC<Props> = ({ settings, onSave }) => {
         try {
             const models = await fetchApiModels(resolvedBaseUrl, {
                 headers: { Authorization: `Bearer ${resolvedApiKey}` }
-            }, { apiProfileId: activeConfig?.id });
-            if (models) return models;
+            }, { apiProfileId: requestConfig?.id });
+            if (models) {
+                if (requestConfig && !功能使用旧独立接口(form, '变量计算')) {
+                    setForm(prev => 记录接口档案模型列表(prev, requestConfig.id, models, requestConfig));
+                }
+                return models;
+            }
             setMessage('获取失败：返回格式错误。');
             return null;
         } catch (e: any) {
@@ -97,6 +99,11 @@ const VariableModelSettings: React.FC<Props> = ({ settings, onSave }) => {
     };
 
     const handleSave = () => {
+        if (独立模型开启 && typeof form.功能模型占位.功能API档案?.变量计算 === 'string'
+            && (!功能接口?.baseUrl || !功能接口?.apiKey)) {
+            setMessage('请先选择可用的 API 档案，或在 API 设置中补全连接信息。');
+            return;
+        }
         if (独立模型开启 && !(form.功能模型占位.变量计算使用模型 || '').trim()) {
             setMessage('已开启变量独立模型，请先获取列表并选择模型。');
             return;
@@ -113,9 +120,9 @@ const VariableModelSettings: React.FC<Props> = ({ settings, onSave }) => {
     const selectOptions = Array.from(
         new Set(
             [
-                ...modelOptions,
+                ...(功能接口?.模型列表 || []), ...(功能使用旧独立接口(form, '变量计算') ? modelOptions : []),
                 variableModelValue,
-                主剧情解析模型
+                (功能接口?.model || '')
             ]
                 .map((item) => (item || '').trim())
                 .filter(Boolean)
@@ -145,6 +152,7 @@ const VariableModelSettings: React.FC<Props> = ({ settings, onSave }) => {
                     />
                 </label>
 
+                <ApiProfileBinding settings={form} usage="变量计算" enabled={独立模型开启} onChange={setForm} onProfileChange={() => setModelOptions([])} />
                 <div className="flex gap-3 items-end">
                     <div className="flex-1 space-y-1">
                         <label className="text-xs text-gray-300">变量生成使用模型</label>
@@ -174,43 +182,47 @@ const VariableModelSettings: React.FC<Props> = ({ settings, onSave }) => {
                     </GameButton>
                 </div>
 
-                <div className="space-y-1">
-                    <label className="text-xs text-gray-300">变量独立 API 地址（可选）</label>
-                    <input
-                        type="text"
-                        value={form.功能模型占位.变量计算API地址 || ''}
-                        onChange={(e) => updatePlaceholder('变量计算API地址', e.target.value)}
-                        placeholder={activeConfig?.baseUrl || '留空则复用主剧情 Base URL'}
-                        disabled={!独立模型开启}
-                        className={`w-full border p-2 text-white rounded-md outline-none ${
-                            独立模型开启
-                                ? 'bg-black/50 border-gray-700 focus:border-cyan-400'
-                                : 'bg-black/30 border-gray-800 text-gray-400'
-                        }`}
-                    />
-                    <div className="text-[11px] text-gray-500">
-                        留空则复用主剧情 Base URL；填写后仅变量生成请求改用此地址。
-                    </div>
-                </div>
+                {功能使用旧独立接口(form, '变量计算') && (
+                    <div className="space-y-3">
+                        <div className="space-y-1">
+                            <label className="text-xs text-gray-300">变量独立 API 地址（可选）</label>
+                            <input
+                                type="text"
+                                value={form.功能模型占位.变量计算API地址 || ''}
+                                onChange={(e) => updatePlaceholder('变量计算API地址', e.target.value)}
+                                placeholder={activeConfig?.baseUrl || '留空则复用主剧情 Base URL'}
+                                disabled={!独立模型开启}
+                                className={`w-full border p-2 text-white rounded-md outline-none ${
+                                    独立模型开启
+                                        ? 'bg-black/50 border-gray-700 focus:border-cyan-400'
+                                        : 'bg-black/30 border-gray-800 text-gray-400'
+                                }`}
+                            />
+                            <div className="text-[11px] text-gray-500">
+                                留空则复用主剧情 Base URL；填写后仅变量生成请求改用此地址。
+                            </div>
+                        </div>
 
-                <div className="space-y-1">
-                    <label className="text-xs text-gray-300">变量独立 API 密钥（可选）</label>
-                    <input
-                        type="password"
-                        value={form.功能模型占位.变量计算API密钥 || ''}
-                        onChange={(e) => updatePlaceholder('变量计算API密钥', e.target.value)}
-                        placeholder={activeConfig?.apiKey ? '留空则复用主剧情 API Key' : 'sk-...'}
-                        disabled={!独立模型开启}
-                        className={`w-full border p-2 text-white rounded-md outline-none ${
-                            独立模型开启
-                                ? 'bg-black/50 border-gray-700 focus:border-cyan-400'
-                                : 'bg-black/30 border-gray-800 text-gray-400'
-                        }`}
-                    />
-                    <div className="text-[11px] text-gray-500">
-                        留空则复用主剧情 API Key；填写后变量生成请求优先使用该密钥。
+                        <div className="space-y-1">
+                            <label className="text-xs text-gray-300">变量独立 API 密钥（可选）</label>
+                            <input
+                                type="password"
+                                value={form.功能模型占位.变量计算API密钥 || ''}
+                                onChange={(e) => updatePlaceholder('变量计算API密钥', e.target.value)}
+                                placeholder={activeConfig?.apiKey ? '留空则复用主剧情 API Key' : 'sk-...'}
+                                disabled={!独立模型开启}
+                                className={`w-full border p-2 text-white rounded-md outline-none ${
+                                    独立模型开启
+                                        ? 'bg-black/50 border-gray-700 focus:border-cyan-400'
+                                        : 'bg-black/30 border-gray-800 text-gray-400'
+                                }`}
+                            />
+                            <div className="text-[11px] text-gray-500">
+                                留空则复用主剧情 API Key；填写后变量生成请求优先使用该密钥。
+                            </div>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 <div className="rounded-md border border-cyan-500/20 bg-black/25 p-3 text-[11px] leading-5 text-gray-400">
                     返回内容只用于变量更新，不参与正文生成。变量模型失败时，会自动回退为“主剧情命令 + 本地变量修正”。

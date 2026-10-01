@@ -187,13 +187,19 @@ export interface 单接口配置结构 {
     baseUrl: string;
     apiKey: string;
     model: string;
+    模型列表?: string[];
     maxTokens?: number;
     temperature?: number;
     createdAt: number;
     updatedAt: number;
 }
 
+export type 功能API用途 = '剧情回忆' | '记忆总结' | '世界演变' | '变量计算' | '规划分析'
+    | '文章优化' | '小说拆分' | '文生图' | '场景生图' | '词组转化器' | 'PNG提炼';
+
 export interface 功能模型占位配置结构 {
+    // Missing entry preserves legacy connection fields; empty ID explicitly follows the main profile.
+    功能API档案?: Partial<Record<功能API用途, string>>;
     主剧情使用模型: string;
     剧情回忆独立模型开关: boolean;
     剧情回忆静默确认: boolean;

@@ -4,6 +4,7 @@ import {
     接口供应商类型,
     OpenAI兼容方案类型,
     功能模型占位配置结构,
+    功能API用途,
     请求协议覆盖类型,
     画师串预设结构,
     模型词组转化器预设结构,
@@ -917,11 +918,30 @@ const 标准化单配置 = (raw: any, index: number): 单接口配置结构 => {
         baseUrl,
         apiKey,
         model,
+        模型列表: 标准化字符串列表(raw?.模型列表),
         maxTokens,
         temperature,
         createdAt,
         updatedAt
     };
+};
+
+export const 功能API模型字段 = {
+    剧情回忆: '剧情回忆使用模型', 记忆总结: '记忆总结使用模型', 世界演变: '世界演变使用模型',
+    变量计算: '变量计算使用模型', 规划分析: '规划分析使用模型', 文章优化: '文章优化使用模型',
+    小说拆分: '小说拆分使用模型', 文生图: '文生图模型使用模型', 场景生图: '场景生图模型使用模型',
+    词组转化器: '词组转化器使用模型', PNG提炼: 'PNG提炼使用模型'
+} as const satisfies Record<功能API用途, keyof 功能模型占位配置结构>;
+
+const 标准化功能API档案 = (raw: unknown): 功能模型占位配置结构['功能API档案'] => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+    const bindings: NonNullable<功能模型占位配置结构['功能API档案']> = {};
+    for (const usage of Object.keys(功能API模型字段) as 功能API用途[]) {
+        const id = (raw as Record<string, unknown>)[usage];
+        // Keep missing IDs visible as errors; never silently select a different provider.
+        if (typeof id === 'string') bindings[usage] = id.trim();
+    }
+    return bindings;
 };
 
 const 标准化功能模型占位 = (raw: any): 功能模型占位配置结构 => {
@@ -1011,6 +1031,7 @@ const 标准化功能模型占位 = (raw: any): 功能模型占位配置结构 =
     })();
     return {
         主剧情使用模型: 读取字符串(raw?.主剧情使用模型),
+        功能API档案: 标准化功能API档案(raw?.功能API档案),
         剧情回忆独立模型开关: Boolean(raw?.剧情回忆独立模型开关),
         剧情回忆静默确认: Boolean(raw?.剧情回忆静默确认),
         剧情回忆完整原文条数N: Math.max(1, Number(raw?.剧情回忆完整原文条数N) || 20),
@@ -1219,7 +1240,7 @@ export const 规范化接口设置 = (raw: unknown): 接口设置结构 => {
     };
 };
 
-export type 当前可用接口结构 = Pick<单接口配置结构, 'id' | '名称' | '供应商' | '协议覆盖' | 'baseUrl' | 'apiKey' | 'model' | 'maxTokens' | 'temperature'> & {
+export type 当前可用接口结构 = Pick<单接口配置结构, 'id' | '名称' | '供应商' | '协议覆盖' | 'baseUrl' | 'apiKey' | 'model' | '模型列表' | 'maxTokens' | 'temperature'> & {
     图片后端类型?: 功能模型占位配置结构['文生图后端类型'];
     图片接口路径?: string;
     图片接口路径模式?: 功能模型占位配置结构['文生图接口路径模式'];
@@ -1361,6 +1382,7 @@ export const 获取当前接口配置 = (settings: 接口设置结构): 当前�
         baseUrl: active.baseUrl,
         apiKey: active.apiKey,
         model: active.model,
+        模型列表: active.模型列表,
         maxTokens: active.maxTokens,
         temperature: active.temperature
     };
@@ -1377,206 +1399,148 @@ export const 获取主剧情接口配置 = (settings: 接口设置结构): 当�
     };
 };
 
-export const 获取剧情回忆接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null => {
-    const current = 获取当前接口配置(settings);
-    if (!current) return null;
-    const feature = (settings as any)?.功能模型占位;
-    const enabled = Boolean(feature?.剧情回忆独立模型开关);
-    if (!enabled) return null;
-    const recallModel = 读取字符串(feature?.剧情回忆使用模型).trim();
-    if (!recallModel) return null;
-    const recallBaseUrl = 读取字符串(feature?.剧情回忆API地址).trim();
-    const recallApiKey = 读取字符串(feature?.剧情回忆API密钥).trim();
-    const supplier = recallBaseUrl ? 推断供应商(recallBaseUrl) : current.供应商;
-    return {
-        ...current,
-        供应商: supplier,
-        协议覆盖: recallBaseUrl ? 'auto' : current.协议覆盖,
-        baseUrl: recallBaseUrl || current.baseUrl,
-        apiKey: recallApiKey || current.apiKey,
-        model: recallModel
-    };
+export const 功能存在旧独立配置 = (settings: 接口设置结构, usage: 功能API用途): boolean => {
+    const prefix = 功能API模型字段[usage].replace(/使用模型$/, '');
+    const feature = settings.功能模型占位 as unknown as Record<string, unknown>;
+    return Boolean(读取字符串(feature[`${prefix}API地址`]).trim() || 读取字符串(feature[`${prefix}API密钥`]).trim());
 };
+
+export const 功能使用旧独立接口 = (settings: 接口设置结构, usage: 功能API用途): boolean =>
+    typeof settings.功能模型占位.功能API档案?.[usage] !== 'string' && 功能存在旧独立配置(settings, usage);
+
+export const 获取功能基础接口配置 = (settings: 接口设置结构, usage: 功能API用途): 当前可用接口结构 | null => {
+    const feature = settings.功能模型占位;
+    const binding = feature.功能API档案?.[usage];
+    if (typeof binding === 'string') {
+        if (!binding) return 获取当前接口配置(settings);
+        const profile = settings.configs.find(config => config.id === binding);
+        // A deleted profile must not fall back to the main API or legacy credentials.
+        return profile ? { ...profile, 协议覆盖: profile.协议覆盖 || 'auto' } : null;
+    }
+    let current = 获取当前接口配置(settings);
+    if (usage === '场景生图' && feature.场景生图后端类型 === feature.文生图后端类型) {
+        current = 获取功能基础接口配置(settings, '文生图');
+    }
+    const prefix = 功能API模型字段[usage].replace(/使用模型$/, '');
+    const legacy = feature as unknown as Record<string, unknown>;
+    const baseUrl = 读取字符串(legacy[`${prefix}API地址`]
+        || (usage === '规划分析' ? feature.剧情规划API地址 || feature.女主规划API地址 : '')).trim();
+    const apiKey = 读取字符串(legacy[`${prefix}API密钥`]
+        || (usage === '规划分析' ? feature.剧情规划API密钥 || feature.女主规划API密钥 : '')).trim();
+    if (!current) {
+        if (usage !== '小说拆分' || !baseUrl || !apiKey) return null;
+        return { id: 'novel_decomposition_dedicated', 名称: '小说拆分独立接口', 供应商: 推断供应商(baseUrl),
+            协议覆盖: 'auto', baseUrl, apiKey, model: feature.小说拆分使用模型 };
+    }
+    const canReuse = usage !== '场景生图' || feature.场景生图后端类型 === feature.文生图后端类型;
+    return { ...current, baseUrl: baseUrl || (canReuse ? current.baseUrl : ''), apiKey: apiKey || (canReuse ? current.apiKey : ''),
+        供应商: baseUrl ? 推断供应商(baseUrl) : current.供应商,
+        协议覆盖: baseUrl ? 'auto' : current.协议覆盖,
+        模型列表: baseUrl || apiKey ? undefined : current.模型列表 };
+};
+
+export const 设置功能API档案 = (settings: 接口设置结构, usage: 功能API用途, id?: string): 接口设置结构 => {
+    const bindings = { ...settings.功能模型占位.功能API档案 };
+    if (id === undefined) delete bindings[usage]; else bindings[usage] = id;
+    const profile = id ? settings.configs.find(config => config.id === id) : 获取当前接口配置(settings);
+    const feature = { ...settings.功能模型占位, 功能API档案: bindings };
+    // Choose the saved default model when changing profiles; legacy mode retains its old model.
+    if (id !== undefined) {
+        feature[功能API模型字段[usage]] = profile?.model || '';
+        if (usage === '规划分析') {
+            feature.女主规划使用模型 = feature.规划分析使用模型;
+            feature.剧情规划使用模型 = feature.规划分析使用模型;
+        }
+    }
+    return { ...settings, 功能模型占位: feature };
+};
+
+export const 记录接口档案模型列表 = (
+    settings: 接口设置结构, id: string, models: string[],
+    source?: Pick<当前可用接口结构, 'baseUrl' | 'apiKey'>
+): 接口设置结构 => ({
+    ...settings,
+    configs: settings.configs.map(config => config.id === id
+        && (!source || (source.baseUrl === config.baseUrl && source.apiKey === config.apiKey))
+        ? { ...config, 模型列表: Array.from(new Set(models.map(model => model.trim()).filter(Boolean))) }
+        : config)
+});
+
+export const 获取功能使用模型 = (settings: 接口设置结构, usage: 功能API用途, config: 当前可用接口结构 | null): string => {
+    const feature = settings.功能模型占位;
+    const model = 读取字符串(feature[功能API模型字段[usage]]
+        || (usage === '规划分析' ? feature.剧情规划使用模型 || feature.女主规划使用模型 : '')).trim();
+    return model || (typeof settings.功能模型占位.功能API档案?.[usage] === 'string' ? config?.model || '' : '');
+};
+
+const 获取独立功能接口 = (settings: 接口设置结构, usage: 功能API用途, enabled: boolean): 当前可用接口结构 | null => {
+    if (!enabled) return null;
+    const current = 获取功能基础接口配置(settings, usage);
+    const model = 获取功能使用模型(settings, usage, current);
+    return current && model ? { ...current, model } : null;
+};
+
+export const 获取剧情回忆接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null =>
+    获取独立功能接口(settings, '剧情回忆', Boolean(settings.功能模型占位?.剧情回忆独立模型开关));
 
 export const 获取记忆总结接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null => {
-    const current = 获取当前接口配置(settings);
-    if (!current) return null;
-
-    const feature = (settings as any)?.功能模型占位;
-    const independent = Boolean(feature?.记忆总结独立模型开关);
-    if (!independent) {
-        const recallConfig = 获取剧情回忆接口配置(settings);
-        if (接口配置是否可用(recallConfig)) return recallConfig;
-        return current;
-    }
-    const summaryModel = 读取字符串(feature?.记忆总结使用模型).trim();
-    if (!summaryModel) return null;
-    const summaryBaseUrl = 读取字符串(feature?.记忆总结API地址).trim();
-    const summaryApiKey = 读取字符串(feature?.记忆总结API密钥).trim();
-    const supplier = summaryBaseUrl ? 推断供应商(summaryBaseUrl) : current.供应商;
-
-    return {
-        ...current,
-        供应商: supplier,
-        协议覆盖: summaryBaseUrl ? 'auto' : current.协议覆盖,
-        baseUrl: summaryBaseUrl || current.baseUrl,
-        apiKey: summaryApiKey || current.apiKey,
-        model: summaryModel
-    };
+    if (settings.功能模型占位?.记忆总结独立模型开关) return 获取独立功能接口(settings, '记忆总结', true);
+    const recall = 获取剧情回忆接口配置(settings);
+    return 接口配置是否可用(recall) ? recall : 获取当前接口配置(settings);
 };
 
-export const 获取文章优化接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null => {
-    const current = 获取当前接口配置(settings);
-    if (!current) return null;
+export const 获取文章优化接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null =>
+    获取独立功能接口(settings, '文章优化', Boolean(settings.功能模型占位?.文章优化独立模型开关));
 
-    const feature = (settings as any)?.功能模型占位;
-    const independent = Boolean(feature?.文章优化独立模型开关);
-    if (!independent) return null;
-    const polishModel = 读取字符串(feature?.文章优化使用模型).trim();
-    if (!polishModel) return null;
-    const polishBaseUrl = 读取字符串(feature?.文章优化API地址).trim();
-    const polishApiKey = 读取字符串(feature?.文章优化API密钥).trim();
-    const supplier = polishBaseUrl ? 推断供应商(polishBaseUrl) : current.供应商;
-
-    return {
-        ...current,
-        供应商: supplier,
-        协议覆盖: polishBaseUrl ? 'auto' : current.协议覆盖,
-        baseUrl: polishBaseUrl || current.baseUrl,
-        apiKey: polishApiKey || current.apiKey,
-        model: polishModel
-    };
-};
-
-export const 获取变量计算接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null => {
-    const current = 获取当前接口配置(settings);
-    if (!current) return null;
-
-    const feature = (settings as any)?.功能模型占位;
-    const enabled = Boolean(feature?.变量计算独立模型开关);
-    const variableModel = 读取字符串(feature?.变量计算使用模型).trim();
-    if (!enabled || !variableModel) return null;
-    const variableBaseUrl = 读取字符串(feature?.变量计算API地址).trim();
-    const variableApiKey = 读取字符串(feature?.变量计算API密钥).trim();
-    const supplier = variableBaseUrl ? 推断供应商(variableBaseUrl) : current.供应商;
-
-    return {
-        ...current,
-        供应商: supplier,
-        协议覆盖: variableBaseUrl ? 'auto' : current.协议覆盖,
-        baseUrl: variableBaseUrl || current.baseUrl,
-        apiKey: variableApiKey || current.apiKey,
-        model: variableModel
-    };
-};
+export const 获取变量计算接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null =>
+    获取独立功能接口(settings, '变量计算', Boolean(settings.功能模型占位?.变量计算独立模型开关));
 
 export const 变量校准功能已启用 = (settings: 接口设置结构 | null | undefined): boolean => {
     const feature = (settings as any)?.功能模型占位;
     return Boolean(feature?.变量计算独立模型开关);
 };
 
-export const 获取世界演变接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null => {
-    const current = 获取当前接口配置(settings);
-    if (!current) return null;
-
-    const feature = (settings as any)?.功能模型占位;
-    const enabled = Boolean(feature?.世界演变独立模型开关);
-    const worldModel = 读取字符串(feature?.世界演变使用模型).trim();
-    if (!enabled || !worldModel) return null;
-    const worldBaseUrl = 读取字符串(feature?.世界演变API地址).trim();
-    const worldApiKey = 读取字符串(feature?.世界演变API密钥).trim();
-    const supplier = worldBaseUrl ? 推断供应商(worldBaseUrl) : current.供应商;
-
-    return {
-        ...current,
-        供应商: supplier,
-        协议覆盖: worldBaseUrl ? 'auto' : current.协议覆盖,
-        baseUrl: worldBaseUrl || current.baseUrl,
-        apiKey: worldApiKey || current.apiKey,
-        model: worldModel
-    };
-};
+export const 获取世界演变接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null =>
+    获取独立功能接口(settings, '世界演变', Boolean(settings.功能模型占位?.世界演变独立模型开关));
 
 export const 获取小说拆分接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null => {
-    const current = 获取当前接口配置(settings);
-    const feature = (settings as any)?.功能模型占位;
-    const baseUrl = 读取字符串(feature?.小说拆分API地址).trim();
-    const apiKey = 读取字符串(feature?.小说拆分API密钥).trim();
-    const dedicatedModel = 读取字符串(feature?.小说拆分使用模型).trim();
-    const 小说拆分最大输出Token = 32_768;
-
-    if (baseUrl && apiKey && dedicatedModel) {
-        return {
-            id: current?.id || 'novel_decomposition_dedicated',
-            名称: current?.名称 || '小说拆分独立接口',
-            供应商: 推断供应商(baseUrl),
-            协议覆盖: 'auto',
-            baseUrl,
-            apiKey,
-            model: dedicatedModel,
-            maxTokens: 小说拆分最大输出Token,
-            temperature: current?.temperature
-        };
-    }
-
+    const current = 获取功能基础接口配置(settings, '小说拆分');
     if (!current) return null;
-
-    const enabled = Boolean(feature?.小说拆分独立模型开关);
-    const model = enabled
-        ? dedicatedModel
-        : 读取字符串(current.model || feature?.主剧情使用模型).trim();
-    if (!model) return null;
-    const supplier = baseUrl ? 推断供应商(baseUrl) : current.供应商;
-
-    return {
-        ...current,
-        供应商: supplier,
-        协议覆盖: baseUrl ? 'auto' : current.协议覆盖,
-        baseUrl: baseUrl || current.baseUrl,
-        apiKey: apiKey || current.apiKey,
-        model,
-        maxTokens: 小说拆分最大输出Token
-    };
+    const feature = settings.功能模型占位;
+    const legacyDedicated = 功能使用旧独立接口(settings, '小说拆分')
+        && feature.小说拆分API地址.trim() && feature.小说拆分API密钥.trim() && feature.小说拆分使用模型.trim();
+    const model = legacyDedicated || feature.小说拆分独立模型开关
+        ? 获取功能使用模型(settings, '小说拆分', current)
+        : 读取字符串(current.model || feature.主剧情使用模型).trim();
+    return model ? { ...current, model, maxTokens: 32_768 } : null;
 };
 
 export const 获取规划分析接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null => {
-    const current = 获取当前接口配置(settings);
-    if (!current) return null;
-
-    const feature = (settings as any)?.功能模型占位;
-    const enabled = Boolean(feature?.规划分析独立模型开关)
-        || Boolean(feature?.剧情规划独立模型开关)
-        || Boolean(feature?.女主规划独立模型开关);
-    const model = 读取字符串(
-        feature?.规划分析使用模型
-        || feature?.剧情规划使用模型
-        || feature?.女主规划使用模型
-    ).trim();
-    if (!enabled || !model) return null;
-    const baseUrl = 读取字符串(
-        feature?.规划分析API地址
-        || feature?.剧情规划API地址
-        || feature?.女主规划API地址
-    ).trim();
-    const apiKey = 读取字符串(
-        feature?.规划分析API密钥
-        || feature?.剧情规划API密钥
-        || feature?.女主规划API密钥
-    ).trim();
-    const supplier = baseUrl ? 推断供应商(baseUrl) : current.供应商;
-
-    return {
-        ...current,
-        供应商: supplier,
-        协议覆盖: baseUrl ? 'auto' : current.协议覆盖,
-        baseUrl: baseUrl || current.baseUrl,
-        apiKey: apiKey || current.apiKey,
-        model
-    };
+    const feature = settings.功能模型占位;
+    return 获取独立功能接口(settings, '规划分析', Boolean(feature?.规划分析独立模型开关
+        || feature?.剧情规划独立模型开关 || feature?.女主规划独立模型开关));
 };
 
 export const 获取规划分析接口配置或主剧情回退 = (settings: 接口设置结构): 当前可用接口结构 | null => {
+    const feature = settings.功能模型占位;
+    if ((feature.规划分析独立模型开关 || feature.剧情规划独立模型开关 || feature.女主规划独立模型开关)
+        && typeof feature.功能API档案?.规划分析 === 'string'
+        && !获取功能基础接口配置(settings, '规划分析')) return null;
     return 获取规划分析接口配置(settings) || 获取主剧情接口配置(settings);
+};
+
+export const 获取PNG提炼接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null => {
+    if (!settings.功能模型占位.PNG提炼启用独立模型) return 获取主剧情接口配置(settings);
+    const current = 获取功能基础接口配置(settings, 'PNG提炼');
+    const model = 获取功能使用模型(settings, 'PNG提炼', current) || current?.model;
+    return current && model ? { ...current, model } : null;
+};
+
+export const 获取词组转化器接口配置或主剧情回退 = (settings: 接口设置结构): 当前可用接口结构 | null => {
+    if (settings.功能模型占位.词组转化器启用独立模型
+        && typeof settings.功能模型占位.功能API档案?.词组转化器 === 'string'
+        && !获取功能基础接口配置(settings, '词组转化器')) return null;
+    return 获取生图词组转化器接口配置(settings) || 获取主剧情接口配置(settings);
 };
 
 export const 获取女主规划接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null => 获取规划分析接口配置(settings);
@@ -1586,7 +1550,8 @@ export const 获取剧情规划接口配置 = (settings: 接口设置结构): �
 };
 
 export const 获取文生图接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null => {
-    const current = 获取当前接口配置(settings);
+    const bound = typeof settings.功能模型占位.功能API档案?.文生图 === 'string';
+    const current = bound ? 获取功能基础接口配置(settings, '文生图') : 获取当前接口配置(settings);
     if (!current) return null;
 
     const feature = (settings as any)?.功能模型占位;
@@ -1595,14 +1560,14 @@ export const 获取文生图接口配置 = (settings: 接口设置结构): 当�
         ? feature.文生图后端类型
         : 'openai';
     if (!enabled) return null;
-    const imageModel = 读取字符串(feature?.文生图模型使用模型).trim();
+    const imageModel = 获取功能使用模型(settings, '文生图', current);
     const 图片后端需要模型 = 图片后端类型 === 'openai' || 图片后端类型 === 'novelai';
     if (图片后端需要模型 && !imageModel) return null;
-    const imageBaseUrl = 读取字符串(feature?.文生图模型API地址).trim();
-    const imageApiKey = 读取字符串(feature?.文生图模型API密钥).trim();
+    const imageBaseUrl = bound ? current.baseUrl : 读取字符串(feature?.文生图模型API地址).trim();
+    const imageApiKey = bound ? current.apiKey : 读取字符串(feature?.文生图模型API密钥).trim();
     const 图片后端可复用主接口地址 = 图片后端类型 === 'openai' || 图片后端类型 === 'novelai';
     const resolvedImageBaseUrl = imageBaseUrl || (图片后端可复用主接口地址 ? current.baseUrl : '');
-    const supplier = resolvedImageBaseUrl ? 推断供应商(resolvedImageBaseUrl) : current.供应商;
+    const supplier = bound ? current.供应商 : (resolvedImageBaseUrl ? 推断供应商(resolvedImageBaseUrl) : current.供应商);
     const 图片后端需要鉴权 = 图片后端类型 === 'openai' || 图片后端类型 === 'novelai';
     const 图片接口路径模式 = feature?.文生图接口路径模式 === 'custom' ? 'custom' : 'preset';
     const 图片预设接口路径: NonNullable<当前可用接口结构['图片预设接口路径']> = feature?.文生图预设接口路径 === 'openai_chat'
@@ -1626,7 +1591,7 @@ export const 获取文生图接口配置 = (settings: 接口设置结构): 当�
     return {
         ...current,
         供应商: supplier,
-        协议覆盖: imageBaseUrl ? 'auto' : current.协议覆盖,
+        协议覆盖: bound ? current.协议覆盖 : (imageBaseUrl ? 'auto' : current.协议覆盖),
         baseUrl: resolvedImageBaseUrl,
         apiKey: 图片后端需要鉴权 ? (imageApiKey || current.apiKey) : imageApiKey,
         model: imageModel,
@@ -1676,17 +1641,21 @@ export const 获取场景文生图接口配置 = (settings: 接口设置结构):
     const independent = Boolean(feature?.场景生图独立接口启用);
     if (!independent) return sharedConfig;
 
+    const bound = typeof settings.功能模型占位.功能API档案?.场景生图 === 'string';
+    const boundConfig = bound ? 获取功能基础接口配置(settings, '场景生图') : null;
+    if (bound && !boundConfig) return null;
+
     const sceneBackend: NonNullable<当前可用接口结构['图片后端类型']> = feature?.场景生图后端类型 === 'novelai' || feature?.场景生图后端类型 === 'sd_webui' || feature?.场景生图后端类型 === 'comfyui'
         ? feature.场景生图后端类型
         : 'openai';
     const sharedBackend: NonNullable<当前可用接口结构['图片后端类型']> = sharedConfig.图片后端类型 === 'novelai' || sharedConfig.图片后端类型 === 'sd_webui' || sharedConfig.图片后端类型 === 'comfyui'
         ? sharedConfig.图片后端类型
         : 'openai';
-    const sceneModel = 读取字符串(feature?.场景生图模型使用模型).trim();
+    const sceneModel = 获取功能使用模型(settings, '场景生图', boundConfig);
     const 场景后端需要模型 = sceneBackend === 'openai' || sceneBackend === 'novelai';
     if (场景后端需要模型 && !sceneModel) return null;
-    const sceneBaseUrl = 读取字符串(feature?.场景生图模型API地址).trim();
-    const sceneApiKey = 读取字符串(feature?.场景生图模型API密钥).trim();
+    const sceneBaseUrl = boundConfig ? boundConfig.baseUrl : 读取字符串(feature?.场景生图模型API地址).trim();
+    const sceneApiKey = boundConfig ? boundConfig.apiKey : 读取字符串(feature?.场景生图模型API密钥).trim();
     const sceneWorkflow = 读取字符串(feature?.场景ComfyUI工作流JSON);
     const canReuseSharedConnection = sceneBackend === sharedBackend;
     const resolvedBaseUrl = sceneBaseUrl || (canReuseSharedConnection ? sharedConfig.baseUrl : '');
@@ -1697,7 +1666,7 @@ export const 获取场景文生图接口配置 = (settings: 接口设置结构):
     const resolvedWorkflow = sceneBackend === 'comfyui'
         ? (sceneWorkflow || (canReuseSharedConnection ? sharedConfig.ComfyUI工作流JSON || '' : ''))
         : '';
-    const supplier = resolvedBaseUrl ? 推断供应商(resolvedBaseUrl) : sharedConfig.供应商;
+    const supplier = boundConfig ? boundConfig.供应商 : (resolvedBaseUrl ? 推断供应商(resolvedBaseUrl) : sharedConfig.供应商);
     const scenePresetPathMap: Record<'openai' | 'novelai' | 'sd_webui' | 'comfyui', NonNullable<当前可用接口结构['图片预设接口路径']>> = {
         openai: 'openai_images',
         novelai: 'novelai_generate',
@@ -1726,8 +1695,9 @@ export const 获取场景文生图接口配置 = (settings: 接口设置结构):
 
     return {
         ...sharedConfig,
+        ...(boundConfig || {}),
         供应商: supplier,
-        协议覆盖: sceneBaseUrl ? 'auto' : (canReuseSharedConnection ? sharedConfig.协议覆盖 : 'auto'),
+        协议覆盖: boundConfig ? boundConfig.协议覆盖 : (sceneBaseUrl ? 'auto' : (canReuseSharedConnection ? sharedConfig.协议覆盖 : 'auto')),
         baseUrl: resolvedBaseUrl,
         apiKey: resolvedApiKey,
         model: sceneModel,
@@ -1743,7 +1713,8 @@ export const 获取场景文生图接口配置 = (settings: 接口设置结构):
 };
 
 export const 获取生图词组转化器接口配置 = (settings: 接口设置结构): 当前可用接口结构 | null => {
-    const current = 获取当前接口配置(settings);
+    const current = settings.功能模型占位.词组转化器启用独立模型
+        ? 获取功能基础接口配置(settings, '词组转化器') : 获取当前接口配置(settings);
     if (!current) return null;
 
     const feature = (settings as any)?.功能模型占位;
@@ -1761,18 +1732,10 @@ export const 获取生图词组转化器接口配置 = (settings: 接口设置�
         ,
         词组转化兼容模式: feature?.词组转化兼容模式 === true
     };
-    const transformerModel = 读取字符串(feature?.词组转化器使用模型).trim();
+    const transformerModel = 获取功能使用模型(settings, '词组转化器', current);
     if (!transformerModel) return null;
-    const transformerBaseUrl = 读取字符串(feature?.词组转化器API地址).trim();
-    const transformerApiKey = 读取字符串(feature?.词组转化器API密钥).trim();
-    const supplier = transformerBaseUrl ? 推断供应商(transformerBaseUrl) : current.供应商;
-
     return {
         ...current,
-        供应商: supplier,
-        协议覆盖: transformerBaseUrl ? 'auto' : current.协议覆盖,
-        baseUrl: transformerBaseUrl || current.baseUrl,
-        apiKey: transformerApiKey || current.apiKey,
         model: transformerModel,
         词组转化器提示词: 读取字符串(feature?.词组转化器提示词).trim(),
         模型词组转化器预设列表: Array.isArray(feature?.模型词组转化器预设列表) ? feature.模型词组转化器预设列表 : [],

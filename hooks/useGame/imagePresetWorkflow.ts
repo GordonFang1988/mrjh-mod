@@ -1,5 +1,5 @@
 import type { PNG画风预设结构, 接口设置结构, 角色锚点结构 } from '../../types';
-import { 获取主剧情接口配置, 获取生图词组转化器接口配置, 接口配置是否可用, 规范化接口设置 } from '../../utils/apiConfig';
+import { 获取PNG提炼接口配置, 获取主剧情接口配置, 获取词组转化器接口配置或主剧情回退, 接口配置是否可用, 规范化接口设置 } from '../../utils/apiConfig';
 import { 提取NPC生图基础数据, 提取主角生图基础数据 } from './npcContext';
 
 type 右下角提示参数 = {
@@ -279,26 +279,7 @@ export const 创建图片预设工作流 = (deps: 图片预设工作流依赖) =
     const 解析并提炼PNG画风 = async (file: File, options?: { 预设名称?: string; 额外要求?: string }) => {
         const baseConfig = 规范化接口设置(deps.获取接口配置());
         const feature = baseConfig.功能模型占位;
-        const resolvedApi = feature?.PNG提炼启用独立模型 === true
-            ? {
-                ...baseConfig,
-                activeConfigId: 'png_refine',
-                configs: [
-                    ...(Array.isArray(baseConfig.configs) ? baseConfig.configs : []),
-                    {
-                        id: 'png_refine',
-                        名称: 'PNG提炼模型',
-                        供应商: baseConfig.configs?.[0]?.供应商 || 'openai',
-                        baseUrl: feature?.PNG提炼API地址 || baseConfig.configs?.[0]?.baseUrl || '',
-                        apiKey: feature?.PNG提炼API密钥 || baseConfig.configs?.[0]?.apiKey || '',
-                        model: feature?.PNG提炼使用模型 || baseConfig.configs?.[0]?.model || '',
-                        createdAt: Date.now(),
-                        updatedAt: Date.now()
-                    }
-                ]
-            }
-            : baseConfig;
-        const refineApi = 获取主剧情接口配置(resolvedApi);
+        const refineApi = 获取PNG提炼接口配置(baseConfig);
         if (!refineApi || !接口配置是否可用(refineApi)) {
             throw new Error('PNG提炼需要配置可用的接口模型。');
         }
@@ -514,7 +495,7 @@ export const 创建图片预设工作流 = (deps: 图片预设工作流依赖) =
             throw new Error('未找到目标 NPC，无法提取角色锚点。');
         }
         const apiConfig = deps.获取接口配置();
-        const anchorApi = 获取生图词组转化器接口配置(apiConfig) || 获取主剧情接口配置(apiConfig);
+        const anchorApi = 获取词组转化器接口配置或主剧情回退(apiConfig);
         if (!anchorApi || !接口配置是否可用(anchorApi)) {
             throw new Error('未配置可用的接口模型，无法提取角色锚点。');
         }
@@ -559,7 +540,7 @@ export const 创建图片预设工作流 = (deps: 图片预设工作流依赖) =
             throw new Error('未找到主角数据，无法提取角色锚点。');
         }
         const apiConfig = deps.获取接口配置();
-        const anchorApi = 获取生图词组转化器接口配置(apiConfig) || 获取主剧情接口配置(apiConfig);
+        const anchorApi = 获取词组转化器接口配置或主剧情回退(apiConfig);
         if (!anchorApi || !接口配置是否可用(anchorApi)) {
             throw new Error('未配置可用的接口模型，无法提取角色锚点。');
         }

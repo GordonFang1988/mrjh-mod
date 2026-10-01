@@ -4,7 +4,8 @@ import { 接口设置结构, 单接口配置结构, 功能模型占位配置结�
 import GameButton from '../../ui/GameButton';
 import ToggleSwitch from '../../ui/ToggleSwitch';
 import InlineSelect from '../../ui/InlineSelect';
-import { 规范化接口设置 } from '../../../utils/apiConfig';
+import { 规范化接口设置, 获取当前接口配置, 获取功能基础接口配置, 功能使用旧独立接口, 记录接口档案模型列表 } from '../../../utils/apiConfig';
+import ApiProfileBinding from './ApiProfileBinding';
 
 interface Props {
     settings: 接口设置结构;
@@ -31,12 +32,11 @@ const RecallModelSettings: React.FC<Props> = ({ settings, onSave }) => {
     }, [form.activeConfigId, form.configs]);
 
     const 主剧情解析模型 = useMemo(() => {
-        return (form.功能模型占位.主剧情使用模型 || '').trim();
-    }, [form.功能模型占位.主剧情使用模型]);
+        return (activeConfig?.model || form.功能模型占位.主剧情使用模型 || '').trim();
+    }, [activeConfig?.model, form.功能模型占位.主剧情使用模型]);
 
     const 独立模型开启 = Boolean(form.功能模型占位.剧情回忆独立模型开关);
-    const 独立API地址 = (form.功能模型占位.剧情回忆API地址 || '').trim();
-    const 独立API密钥 = (form.功能模型占位.剧情回忆API密钥 || '').trim();
+    const 功能接口 = 独立模型开启 ? 获取功能基础接口配置(form, '剧情回忆') : 获取当前接口配置(form);
 
     const updatePlaceholder = <K extends keyof 功能模型占位配置结构>(key: K, value: 功能模型占位配置结构[K]) => {
         setForm(prev => ({
@@ -49,12 +49,9 @@ const RecallModelSettings: React.FC<Props> = ({ settings, onSave }) => {
     };
 
     const fetchModelsFromCurrentConfig = async (): Promise<string[] | null> => {
-        const resolvedBaseUrl = 独立模型开启 && 独立API地址
-            ? 独立API地址
-            : (activeConfig?.baseUrl || '');
-        const resolvedApiKey = 独立模型开启 && 独立API密钥
-            ? 独立API密钥
-            : (activeConfig?.apiKey || '');
+        const requestConfig = 功能接口;
+        const resolvedBaseUrl = requestConfig?.baseUrl || '';
+        const resolvedApiKey = requestConfig?.apiKey || '';
         if (!resolvedApiKey || !resolvedBaseUrl) {
             setMessage('请先填写可用的 API Key 与 Base URL（支持独立密钥）。');
             return null;
@@ -62,8 +59,13 @@ const RecallModelSettings: React.FC<Props> = ({ settings, onSave }) => {
         try {
             const models = await fetchApiModels(resolvedBaseUrl, {
                 headers: { Authorization: `Bearer ${resolvedApiKey}` }
-            }, { apiProfileId: activeConfig?.id });
-            if (models) return models;
+            }, { apiProfileId: requestConfig?.id });
+            if (models) {
+                if (requestConfig && !功能使用旧独立接口(form, '剧情回忆')) {
+                    setForm(prev => 记录接口档案模型列表(prev, requestConfig.id, models, requestConfig));
+                }
+                return models;
+            }
             setMessage('获取失败：返回格式错误。');
             return null;
         } catch (e: any) {
@@ -98,6 +100,11 @@ const RecallModelSettings: React.FC<Props> = ({ settings, onSave }) => {
     };
 
     const handleSave = () => {
+        if (独立模型开启 && typeof form.功能模型占位.功能API档案?.剧情回忆 === 'string'
+            && (!功能接口?.baseUrl || !功能接口?.apiKey)) {
+            setMessage('请先选择可用的 API 档案，或在 API 设置中补全连接信息。');
+            return;
+        }
         if (独立模型开启 && !(form.功能模型占位.剧情回忆使用模型 || '').trim()) {
             setMessage('已开启剧情回忆独立模型，请先获取列表并选择模型。');
             return;
@@ -114,9 +121,9 @@ const RecallModelSettings: React.FC<Props> = ({ settings, onSave }) => {
     const selectOptions = Array.from(
         new Set(
             [
-                ...modelOptions,
+                ...(功能接口?.模型列表 || []), ...(功能使用旧独立接口(form, '剧情回忆') ? modelOptions : []),
                 recallModelValue,
-                主剧情解析模型
+                (功能接口?.model || '')
             ]
                 .map(item => (item || '').trim())
                 .filter(Boolean)
@@ -131,7 +138,7 @@ const RecallModelSettings: React.FC<Props> = ({ settings, onSave }) => {
 
             <div className="rounded-md border border-wuxia-gold/20 bg-black/25 p-4 space-y-4">
                 <div className="text-[11px] text-gray-400">
-                    当前启用接口配置：{activeConfig?.名称 || '未配置'}。可为剧情回忆单独指定 Base URL 与 API Key；留空时复用主配置。
+                    当前启用接口配置：{activeConfig?.名称 || '未配置'}。可选择已保存的 API 档案，无需重复填写地址与密钥。
                 </div>
 
                 <label className="flex items-center justify-between gap-3 text-xs text-gray-300">
@@ -143,6 +150,7 @@ const RecallModelSettings: React.FC<Props> = ({ settings, onSave }) => {
                     />
                 </label>
 
+                <ApiProfileBinding settings={form} usage="剧情回忆" enabled={独立模型开启} onChange={setForm} onProfileChange={() => setModelOptions([])} />
                 <div className="flex gap-3 items-end">
                     <div className="flex-1 space-y-1">
                         <label className="text-xs text-gray-300">剧情回忆使用模型</label>
@@ -171,42 +179,46 @@ const RecallModelSettings: React.FC<Props> = ({ settings, onSave }) => {
                         {loadingModels ? '...' : '获取列表'}
                     </GameButton>
                 </div>
-                <div className="space-y-1">
-                    <label className="text-xs text-gray-300">剧情回忆独立 API 地址（可选）</label>
-                    <input
-                        type="text"
-                        value={form.功能模型占位.剧情回忆API地址 || ''}
-                        onChange={(e) => updatePlaceholder('剧情回忆API地址', e.target.value)}
-                        placeholder={activeConfig?.baseUrl || '留空则复用主剧情 Base URL'}
-                        disabled={!独立模型开启}
-                        className={`w-full border p-2 text-white rounded-md outline-none ${
-                            独立模型开启
-                                ? 'bg-black/50 border-gray-700 focus:border-wuxia-gold'
-                                : 'bg-black/30 border-gray-800 text-gray-400'
-                        }`}
-                    />
-                    <div className="text-[11px] text-gray-500">
-                        留空则复用主剧情 Base URL；填写后仅剧情回忆请求改用此地址。
+                {功能使用旧独立接口(form, '剧情回忆') && (
+                    <div className="space-y-3">
+                        <div className="space-y-1">
+                            <label className="text-xs text-gray-300">剧情回忆独立 API 地址（可选）</label>
+                            <input
+                                type="text"
+                                value={form.功能模型占位.剧情回忆API地址 || ''}
+                                onChange={(e) => updatePlaceholder('剧情回忆API地址', e.target.value)}
+                                placeholder={activeConfig?.baseUrl || '留空则复用主剧情 Base URL'}
+                                disabled={!独立模型开启}
+                                className={`w-full border p-2 text-white rounded-md outline-none ${
+                                    独立模型开启
+                                        ? 'bg-black/50 border-gray-700 focus:border-wuxia-gold'
+                                        : 'bg-black/30 border-gray-800 text-gray-400'
+                                }`}
+                            />
+                            <div className="text-[11px] text-gray-500">
+                                留空则复用主剧情 Base URL；填写后仅剧情回忆请求改用此地址。
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs text-gray-300">剧情回忆独立 API 密钥（可选）</label>
+                            <input
+                                type="password"
+                                value={form.功能模型占位.剧情回忆API密钥 || ''}
+                                onChange={(e) => updatePlaceholder('剧情回忆API密钥', e.target.value)}
+                                placeholder={activeConfig?.apiKey ? '留空则复用主剧情 API Key' : 'sk-...'}
+                                disabled={!独立模型开启}
+                                className={`w-full border p-2 text-white rounded-md outline-none ${
+                                    独立模型开启
+                                        ? 'bg-black/50 border-gray-700 focus:border-wuxia-gold'
+                                        : 'bg-black/30 border-gray-800 text-gray-400'
+                                }`}
+                            />
+                            <div className="text-[11px] text-gray-500">
+                                留空则复用主剧情 API Key；填写后剧情回忆请求优先使用该密钥。
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div className="space-y-1">
-                    <label className="text-xs text-gray-300">剧情回忆独立 API 密钥（可选）</label>
-                    <input
-                        type="password"
-                        value={form.功能模型占位.剧情回忆API密钥 || ''}
-                        onChange={(e) => updatePlaceholder('剧情回忆API密钥', e.target.value)}
-                        placeholder={activeConfig?.apiKey ? '留空则复用主剧情 API Key' : 'sk-...'}
-                        disabled={!独立模型开启}
-                        className={`w-full border p-2 text-white rounded-md outline-none ${
-                            独立模型开启
-                                ? 'bg-black/50 border-gray-700 focus:border-wuxia-gold'
-                                : 'bg-black/30 border-gray-800 text-gray-400'
-                        }`}
-                    />
-                    <div className="text-[11px] text-gray-500">
-                        留空则复用主剧情 API Key；填写后剧情回忆请求优先使用该密钥。
-                    </div>
-                </div>
+                )}
 
                 {!独立模型开启 && (
                     <div className="text-[11px] text-gray-400">

@@ -4,6 +4,16 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-02', date: '2026年10月2日', updates: [{
+        id: '2026-10-02-v1.0.10', time: '01:46', version: 'v1.0.10',
+        title: '辅助功能复用已保存的 API 档案',
+        summary: '一次保存地址、密钥与接口类型，世界演变、变量生成、规划分析等功能即可选择复用。',
+        items: [
+            '剧情回忆、总结、世界演变、变量生成、规划分析、润色和小说分解可选择已有档案，并单独选择模型。',
+            '文生图、场景生图、词组转化器和 PNG 提炼同步接入，保留原有图片后端与功能开关。',
+            '接口类型沿用所选档案，模型列表共享缓存；档案连接修改后同步生效，删除档案时明确提示重新选择。',
+            '兼容旧独立配置及设置导入导出，保持提示词、重试策略、输出限制与调用流程。'
+        ]
+    }, {
         id: '2026-10-02-v1.0.9', time: '01:31', version: 'v1.0.9',
         title: '修复新地点再次出现空白背景',
         summary: '模型漏场景分类时，新地名不必命中固定词条，也能从现有图库中选择相近背景。',

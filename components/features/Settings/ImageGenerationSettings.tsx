@@ -3,6 +3,7 @@ import { fetchApiModels } from '../../../services/ai/modelList';
 import {
     接口设置结构,
     功能模型占位配置结构,
+    功能API用途,
     单接口配置结构,
     画师串预设结构,
     词组转化器提示词预设结构,
@@ -11,7 +12,8 @@ import {
 import GameButton from '../../ui/GameButton';
 import ToggleSwitch from '../../ui/ToggleSwitch';
 import InlineSelect from '../../ui/InlineSelect';
-import { 规范化接口设置 } from '../../../utils/apiConfig';
+import { 规范化接口设置, 获取当前接口配置, 获取功能基础接口配置, 功能使用旧独立接口, 记录接口档案模型列表 } from '../../../utils/apiConfig';
+import ApiProfileBinding from './ApiProfileBinding';
 import { 自动场景横屏尺寸选项, 自动场景竖屏尺寸选项 } from '../../../utils/imageSizeOptions';
 
 interface Props {
@@ -188,27 +190,35 @@ const ImageGenerationSettings: React.FC<Props> = ({ settings, onSave }) => {
     const 当前预设路径 = 当前预设路径值集合.has(form.功能模型占位.文生图预设接口路径)
         ? form.功能模型占位.文生图预设接口路径
         : 当前预设路径选项[0]?.value || 'openai_images';
+    const 获取模型列表连接 = (key: 生图模型字段) => {
+        const feature = form.功能模型占位;
+        const usage: 功能API用途 | undefined = key === '文生图模型使用模型' ? '文生图'
+            : key === '场景生图模型使用模型' ? (feature.场景生图独立接口启用 ? '场景生图' : '文生图')
+            : key === 'PNG提炼使用模型' ? (feature.PNG提炼启用独立模型 ? 'PNG提炼' : undefined)
+            : (feature.词组转化器启用独立模型 ? '词组转化器' : undefined);
+        return { usage, config: usage ? 获取功能基础接口配置(form, usage) : 获取当前接口配置(form) };
+    };
     const 文生图模型选项 = Array.from(new Set(
         (当前后端 === 'novelai' ? NovelAI模型建议 : [])
-            .concat(modelOptions.文生图模型使用模型, form.功能模型占位.文生图模型使用模型)
+            .concat(获取模型列表连接('文生图模型使用模型').config?.模型列表 || [], (功能使用旧独立接口(form, '文生图') ? modelOptions.文生图模型使用模型 : []), form.功能模型占位.文生图模型使用模型)
             .map((item) => (item || '').trim())
             .filter(Boolean)
     ));
     const 词组转化器模型选项 = Array.from(new Set(
-        modelOptions.词组转化器使用模型
-            .concat(form.功能模型占位.词组转化器使用模型, 主剧情解析模型)
+        (获取模型列表连接('词组转化器使用模型').config?.模型列表 || []).concat((功能使用旧独立接口(form, '词组转化器') ? modelOptions.词组转化器使用模型 : []))
+            .concat(form.功能模型占位.词组转化器使用模型, (获取模型列表连接('词组转化器使用模型').config?.model || ''))
             .map((item) => (item || '').trim())
             .filter(Boolean)
     ));
     const PNG提炼模型选项 = Array.from(new Set(
-        modelOptions.PNG提炼使用模型
-            .concat(form.功能模型占位.PNG提炼使用模型, 主剧情解析模型)
+        (获取模型列表连接('PNG提炼使用模型').config?.模型列表 || []).concat((功能使用旧独立接口(form, 'PNG提炼') ? modelOptions.PNG提炼使用模型 : []))
+            .concat(form.功能模型占位.PNG提炼使用模型, (获取模型列表连接('PNG提炼使用模型').config?.model || ''))
             .map((item) => (item || '').trim())
             .filter(Boolean)
     ));
     const 场景文生图模型选项 = Array.from(new Set(
         (当前场景后端 === 'novelai' ? NovelAI模型建议 : [])
-            .concat(modelOptions.场景生图模型使用模型, form.功能模型占位.场景生图模型使用模型, form.功能模型占位.文生图模型使用模型)
+            .concat(获取模型列表连接('场景生图模型使用模型').config?.模型列表 || [], (功能使用旧独立接口(form, '场景生图') ? modelOptions.场景生图模型使用模型 : []), form.功能模型占位.场景生图模型使用模型, (获取模型列表连接('场景生图模型使用模型').config?.model || ''))
             .map((item) => (item || '').trim())
             .filter(Boolean)
     ));
@@ -460,23 +470,9 @@ const ImageGenerationSettings: React.FC<Props> = ({ settings, onSave }) => {
             : key === '场景生图模型使用模型'
                 ? sceneBackend
                 : feature.文生图后端类型;
-        const customBaseUrl = key === '文生图模型使用模型'
-            ? (feature.文生图模型API地址 || '').trim()
-            : key === '场景生图模型使用模型'
-                ? ((feature.场景生图独立接口启用 ? feature.场景生图模型API地址 : feature.文生图模型API地址) || '').trim()
-                : key === 'PNG提炼使用模型'
-                    ? ((feature.PNG提炼启用独立模型 ? feature.PNG提炼API地址 : '') || '').trim()
-                    : ((feature.词组转化器启用独立模型 ? feature.词组转化器API地址 : '') || '').trim();
-        const customApiKey = key === '文生图模型使用模型'
-            ? (feature.文生图模型API密钥 || '').trim()
-            : key === '场景生图模型使用模型'
-                ? ((feature.场景生图独立接口启用 ? feature.场景生图模型API密钥 : feature.文生图模型API密钥) || '').trim()
-                : key === 'PNG提炼使用模型'
-                    ? ((feature.PNG提炼启用独立模型 ? feature.PNG提炼API密钥 : '') || '').trim()
-                    : ((feature.词组转化器启用独立模型 ? feature.词组转化器API密钥 : '') || '').trim();
-        const canReuseMainConnection = key !== '场景生图模型使用模型' || !feature.场景生图独立接口启用 || sceneBackend === feature.文生图后端类型;
-        const resolvedBaseUrl = customBaseUrl || (canReuseMainConnection ? (activeConfig?.baseUrl || '').trim() : '');
-        const resolvedApiKey = customApiKey || (canReuseMainConnection ? (activeConfig?.apiKey || '').trim() : '');
+        const { usage, config: requestConfig } = 获取模型列表连接(key);
+        const resolvedBaseUrl = requestConfig?.baseUrl || '';
+        const resolvedApiKey = requestConfig?.apiKey || '';
         const targetNeedsModel = key === '词组转化器使用模型' || key === 'PNG提炼使用模型'
             ? true
             : 图片后端需要模型选择(targetBackend);
@@ -498,8 +494,13 @@ const ImageGenerationSettings: React.FC<Props> = ({ settings, onSave }) => {
             if (targetBackend === 'novelai' && (key === '文生图模型使用模型' || key === '场景生图模型使用模型')) return NovelAI模型建议;
             const models = await fetchApiModels(resolvedBaseUrl, {
                 headers: targetNeedsAuth ? { Authorization: `Bearer ${resolvedApiKey}` } : undefined
-            }, { apiProfileId: activeConfig?.id });
-            if (models) return models;
+            }, { apiProfileId: requestConfig?.id });
+            if (models) {
+                if (requestConfig && (!usage || !功能使用旧独立接口(form, usage))) {
+                    setForm(prev => 记录接口档案模型列表(prev, requestConfig.id, models, requestConfig));
+                }
+                return models;
+            }
             setMessage(`获取模型列表失败：${resolvedBaseUrl}`);
             return null;
         } catch (e: any) {
@@ -582,6 +583,21 @@ const ImageGenerationSettings: React.FC<Props> = ({ settings, onSave }) => {
     };
 
     const handleSave = () => {
+        const feature = form.功能模型占位;
+        const enabledRoutes: [功能API用途, boolean][] = [
+            ['文生图', feature.文生图功能启用],
+            ['场景生图', feature.文生图功能启用 && feature.场景生图独立接口启用],
+            ['词组转化器', feature.词组转化器启用独立模型],
+            ['PNG提炼', feature.PNG提炼启用独立模型]
+        ];
+        const missingRoute = enabledRoutes.find(([usage, enabled]) => {
+            const id = feature.功能API档案?.[usage];
+            return enabled && id && !form.configs.some(profile => profile.id === id);
+        });
+        if (missingRoute) {
+            setMessage(`${missingRoute[0]}所选 API 档案已不存在，请重新选择。`);
+            return;
+        }
         const normalized = 规范化接口设置({
             ...form,
             activeConfigId: selectedConfigId || form.activeConfigId,
@@ -638,6 +654,7 @@ const ImageGenerationSettings: React.FC<Props> = ({ settings, onSave }) => {
                     <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-950/10 px-4 py-3 text-sm text-white">{文生图后端选项.find((item) => item.value === 当前后端)?.label}</div>
                 </div>
 
+                <ApiProfileBinding settings={form} usage="文生图" onChange={setForm} onProfileChange={() => setModelOptions(初始化模型列表())}>
                 <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                         <label className={标签样式}>API 地址</label>
@@ -670,6 +687,7 @@ const ImageGenerationSettings: React.FC<Props> = ({ settings, onSave }) => {
                         />
                     </div>
                 </div>
+                </ApiProfileBinding>
             </div>
 
         </div>
@@ -910,6 +928,7 @@ const ImageGenerationSettings: React.FC<Props> = ({ settings, onSave }) => {
                     />
                 </div>
 
+                <ApiProfileBinding settings={form} usage="词组转化器" enabled={form.功能模型占位.词组转化器启用独立模型} onChange={setForm} onProfileChange={() => setModelOptions(初始化模型列表())}>
                 <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                         <label className="text-sm font-bold text-cyan-200">转化器接口地址</label>
@@ -934,6 +953,7 @@ const ImageGenerationSettings: React.FC<Props> = ({ settings, onSave }) => {
                         />
                     </div>
                 </div>
+                </ApiProfileBinding>
 
                 <div className="flex flex-col gap-3 md:flex-row md:items-end">
                     <div className="flex-1 space-y-2">
@@ -982,6 +1002,7 @@ const ImageGenerationSettings: React.FC<Props> = ({ settings, onSave }) => {
                     />
                 </div>
 
+                <ApiProfileBinding settings={form} usage="PNG提炼" enabled={form.功能模型占位.PNG提炼启用独立模型} onChange={setForm} onProfileChange={() => setModelOptions(初始化模型列表())}>
                 <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                         <label className="text-sm font-bold text-violet-200">PNG 提炼接口地址</label>
@@ -1006,6 +1027,7 @@ const ImageGenerationSettings: React.FC<Props> = ({ settings, onSave }) => {
                         />
                     </div>
                 </div>
+                </ApiProfileBinding>
 
                 <div className="flex flex-col gap-3 md:flex-row md:items-end">
                     <div className="flex-1 space-y-2">
@@ -1256,6 +1278,7 @@ const ImageGenerationSettings: React.FC<Props> = ({ settings, onSave }) => {
                                     />
                                 </div>
 
+                                <ApiProfileBinding settings={form} usage="场景生图" enabled={form.功能模型占位.场景生图独立接口启用} onChange={setForm} onProfileChange={() => setModelOptions(初始化模型列表())}>
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
                                         <label className="text-sm font-bold text-sky-200">场景 API 地址</label>
@@ -1288,6 +1311,7 @@ const ImageGenerationSettings: React.FC<Props> = ({ settings, onSave }) => {
                                         />
                                     </div>
                                 </div>
+                                </ApiProfileBinding>
 
                                 {图片后端需要模型选择(当前场景后端) ? (
                                     <>

@@ -11,6 +11,7 @@ import * as textAIService from '../../../services/ai/text';
 import {
     创建接口配置模板,
     供应商标签,
+    记录接口档案模型列表,
     规范化接口设置
 } from '../../../utils/apiConfig';
 
@@ -147,7 +148,6 @@ const 匹配模型输出推荐 = (modelRaw: string): 模型输出推荐项 | nul
 const ApiSettings: React.FC<Props> = ({ settings, onSave }) => {
     const [form, setForm] = useState<接口设置结构>(() => 规范化接口设置(settings));
     const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
-    const [mainModelOptions, setMainModelOptions] = useState<string[]>([]);
     const [loadingMainModels, setLoadingMainModels] = useState(false);
     const [message, setMessage] = useState('');
     const [showSuccess, setShowSuccess] = useState(false);
@@ -164,7 +164,6 @@ const ApiSettings: React.FC<Props> = ({ settings, onSave }) => {
         const normalized = 规范化接口设置(settings);
         setForm(normalized);
         setSelectedConfigId(normalized.activeConfigId || normalized.configs[0]?.id || null);
-        setMainModelOptions([]);
     }, [settings]);
 
     const activeConfig = useMemo<单接口配置结构 | null>(() => {
@@ -187,10 +186,13 @@ const ApiSettings: React.FC<Props> = ({ settings, onSave }) => {
 
     const updateActiveConfig = (patch: Partial<单接口配置结构>) => {
         if (!activeConfig) return;
+        const connectionChanged = (['baseUrl', 'apiKey', '供应商', '协议覆盖'] as const)
+            .some(key => patch[key] !== undefined && patch[key] !== activeConfig[key]);
         setForm((prev) => ({
             ...prev,
             activeConfigId: activeConfig.id,
-            configs: prev.configs.map((cfg) => cfg.id === activeConfig.id ? { ...cfg, ...patch, updatedAt: Date.now() } : cfg)
+            configs: prev.configs.map((cfg) => cfg.id === activeConfig.id
+                ? { ...cfg, ...patch, 模型列表: connectionChanged ? undefined : cfg.模型列表, updatedAt: Date.now() } : cfg)
         }));
     };
 
@@ -230,7 +232,10 @@ const ApiSettings: React.FC<Props> = ({ settings, onSave }) => {
             const models = await fetchApiModels(baseUrlForRequest, {
                 headers: { Authorization: `Bearer ${apiKeyForRequest}` }
             }, { apiProfileId: activeConfig?.id });
-            if (models) return models;
+            if (models) {
+                if (activeConfig) setForm(prev => 记录接口档案模型列表(prev, activeConfig.id, models, activeConfig));
+                return models;
+            }
             setMessage('获取失败：返回格式错误。');
             return null;
         } catch (e: any) {
@@ -244,7 +249,6 @@ const ApiSettings: React.FC<Props> = ({ settings, onSave }) => {
         setMessage('');
         const result = await fetchModelsFromCurrentConfig();
         if (result) {
-            setMainModelOptions(result);
             setMessage('主剧情模型列表获取成功。');
         }
         setLoadingMainModels(false);
@@ -261,7 +265,6 @@ const ApiSettings: React.FC<Props> = ({ settings, onSave }) => {
             };
         });
         setSelectedConfigId(created.id);
-        setMainModelOptions([]);
         setMessage(`已新增 ${供应商标签[newProvider]} 配置，请填写后保存。`);
     };
 
@@ -277,7 +280,6 @@ const ApiSettings: React.FC<Props> = ({ settings, onSave }) => {
                 configs: nextConfigs
             };
         });
-        setMainModelOptions([]);
         setMessage('配置已删除。');
     };
 
@@ -359,7 +361,7 @@ const ApiSettings: React.FC<Props> = ({ settings, onSave }) => {
     const 主剧情模型选项 = Array.from(
         new Set(
             [
-                ...mainModelOptions,
+                ...(activeConfig?.模型列表 || []),
                 主剧情解析模型
             ]
                 .map((item) => (item || '').trim())
@@ -372,7 +374,7 @@ const ApiSettings: React.FC<Props> = ({ settings, onSave }) => {
             <div className="mb-6 flex items-center justify-between border-b border-wuxia-gold/30 pb-3">
                 <div>
                     <h3 className="text-xl font-bold font-serif text-wuxia-gold">接口配置中心</h3>
-                    <div className="mt-1 text-xs text-gray-400">这里只保留主接口连接与主剧情模型设置；功能模型请到对应独立页面管理。</div>
+                    <div className="mt-1 text-xs text-gray-400">在此保存 API 档案及接口类型；世界演变、变量生成等功能可直接选择这些档案，无需重复填写连接信息。</div>
                 </div>
             </div>
 
@@ -411,7 +413,6 @@ const ApiSettings: React.FC<Props> = ({ settings, onSave }) => {
                                 onClick={() => {
                                     setSelectedConfigId(cfg.id);
                                     setForm((prev) => ({ ...prev, activeConfigId: cfg.id }));
-                                    setMainModelOptions([]);
                                 }}
                                 className={`w-full rounded-md border px-3 py-2 text-left transition-colors ${
                                     activeConfig?.id === cfg.id

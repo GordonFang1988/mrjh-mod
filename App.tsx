@@ -15,7 +15,7 @@ import { recordDailyChangelogView } from './release/dailyChangelog';
 import InAppConfirmModal, { ConfirmOptions } from './components/ui/InAppConfirmModal';
 import { useGame } from './hooks/useGame';
 import { 环境时间转标准串, normalizeCanonicalGameTime, 结构化时间转标准串 } from './hooks/useGame/timeUtils';
-import { 获取文生图接口配置, 获取生图词组转化器接口配置, 接口配置是否可用 } from './utils/apiConfig';
+import { 获取文生图接口配置, 获取生图词组转化器接口配置, 获取小说拆分接口配置, 接口配置是否可用 } from './utils/apiConfig';
 import { 构建字体注入样式文本, 构建UI文字CSS变量 } from './utils/visualSettings';
 import { 获取图片资源文本地址 } from './utils/imageAssets';
 import { MusicProvider } from './components/features/Music/MusicProvider';
@@ -554,15 +554,13 @@ const App: React.FC = () => {
         const 独立接口已配置 = Boolean(
             feature?.小说拆分功能启用
             && feature?.小说拆分独立模型开关
-            && (feature?.小说拆分使用模型 || '').trim()
-            && (feature?.小说拆分API地址 || '').trim()
-            && (feature?.小说拆分API密钥 || '').trim()
+            && 接口配置是否可用(获取小说拆分接口配置(state.apiConfig))
         );
 
         if (!独立接口已配置) {
             const accepted = await requestConfirm({
                 title: '先配置小说分解独立 API',
-                message: '小说分解现在从首页独立打开。\n\n使用前请先在“设置 -> 小说分解接口”中启用并填写独立模型、API 地址和密钥。\n\n是否现在前往设置？',
+                message: '小说分解现在从首页独立打开。\n\n使用前请先在“设置 -> 小说分解接口”中启用功能并选择可用的 API 档案和模型。\n\n是否现在前往设置？',
                 confirmText: '前往设置',
                 cancelText: '取消'
             });
