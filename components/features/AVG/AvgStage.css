@@ -1,15 +1,17 @@
 .avg-stage-dialogue {
-    right: 20px;
-    bottom: 20px;
-    width: min(60%, 52rem);
+    left: calc(8px + (100% - 16px) * var(--avg-dialogue-x, 0.5));
+    bottom: calc(20px + var(--avg-dialogue-y, 0%));
+    width: min(var(--avg-dialogue-width, 60%), 52rem);
+    transform: translateX(var(--avg-dialogue-anchor, -50%));
 }
 
 @media (max-width: 900px) {
     .avg-stage-dialogue {
         left: 8px;
         right: 8px;
-        bottom: 8px;
+        bottom: calc(8px + var(--avg-dialogue-y, 0%));
         width: auto;
+        transform: none;
     }
 }
 

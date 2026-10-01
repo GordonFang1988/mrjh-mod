@@ -6,9 +6,13 @@ export type AvgDisplayPreferences = {
     offsetY: number;
     recededScale: number;
     recededOpacity: number;
+    dialogueWidth: number;
+    dialoguePositionX: number;
+    dialoguePositionY: number;
 };
 export const DEFAULT_AVG_DISPLAY: AvgDisplayPreferences = {
-    scale: 100, offsetX: 0, offsetY: 0, recededScale: 76, recededOpacity: 60
+    scale: 100, offsetX: 0, offsetY: 0, recededScale: 76, recededOpacity: 60,
+    dialogueWidth: 60, dialoguePositionX: 50, dialoguePositionY: 0
 };
 const KEY = 'mrjh-avg-display-v1';
 const EVENT = 'mrjh-avg-display-changed';
@@ -19,7 +23,10 @@ export const normalizeAvgDisplay = (value: Partial<AvgDisplayPreferences> = {}):
     offsetX: clamp(value.offsetX, 0, -40, 60),
     offsetY: clamp(value.offsetY, 0, -40, 40),
     recededScale: clamp(value.recededScale, 76, 40, 100),
-    recededOpacity: clamp(value.recededOpacity, 60, 0, 100)
+    recededOpacity: clamp(value.recededOpacity, 60, 0, 100),
+    dialogueWidth: clamp(value.dialogueWidth, 60, 30, 95),
+    dialoguePositionX: clamp(value.dialoguePositionX, 50, 0, 100),
+    dialoguePositionY: clamp(value.dialoguePositionY, 0, 0, 60)
 });
 let cachedRaw: string | null | undefined;
 let cached = DEFAULT_AVG_DISPLAY;
@@ -50,5 +57,9 @@ export const avgDisplayStyle = (value: AvgDisplayPreferences) => ({
     '--avg-user-x': `${value.offsetX}%`,
     '--avg-user-y': `${-value.offsetY}%`,
     '--avg-receded-scale': value.recededScale / 100,
-    '--avg-receded-opacity': value.recededOpacity / 100
+    '--avg-receded-opacity': value.recededOpacity / 100,
+    '--avg-dialogue-width': `${value.dialogueWidth}%`,
+    '--avg-dialogue-x': value.dialoguePositionX / 100,
+    '--avg-dialogue-anchor': `${-value.dialoguePositionX}%`,
+    '--avg-dialogue-y': `${value.dialoguePositionY}%`
 }) as React.CSSProperties;

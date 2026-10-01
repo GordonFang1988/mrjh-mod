@@ -10,7 +10,10 @@ const controls: Array<{ key: keyof AvgDisplayPreferences; label: string; min: nu
     { key: 'offsetX', label: '左右位置', min: -40, max: 60 },
     { key: 'offsetY', label: '上下位置', min: -40, max: 40 },
     { key: 'recededScale', label: '旁白立绘大小', min: 40, max: 100 },
-    { key: 'recededOpacity', label: '旁白立绘不透明度', min: 0, max: 100 }
+    { key: 'recededOpacity', label: '旁白立绘不透明度', min: 0, max: 100 },
+    { key: 'dialogueWidth', label: '对话框宽度', min: 30, max: 95 },
+    { key: 'dialoguePositionX', label: '对话框左右位置', min: 0, max: 100 },
+    { key: 'dialoguePositionY', label: '对话框上移距离', min: 0, max: 60 }
 ];
 const AvgSettings: React.FC<{ settings: 游戏设置结构; onSave: (settings: 游戏设置结构) => void }> = ({ settings, onSave }) => {
     const [form, setForm] = useState(settings);
@@ -70,9 +73,9 @@ const AvgSettings: React.FC<{ settings: 游戏设置结构; onSave: (settings: �
         <header><h2 className="text-xl text-wuxia-gold font-bold">AVG 演出设置</h2>
             <p className="mt-2 text-sm text-gray-400">调整人物演出布局，并管理本机美术资源包。</p></header>
         <section className="space-y-4 rounded-md border border-wuxia-gold/20 bg-black/30 p-4">
-            <div className="flex justify-between items-center gap-3"><h3 className="text-wuxia-cyan font-bold">人物立绘大小与位置</h3>
+            <div className="flex justify-between items-center gap-3"><h3 className="text-wuxia-cyan font-bold">立绘与对话框布局</h3>
                 <button type="button" className="border border-wuxia-gold/40 rounded px-3 py-1 text-sm" onClick={() => { setDraft({ ...DEFAULT_AVG_DISPLAY }); setLayoutMessage(''); }}>恢复默认</button></div>
-            <p className="text-xs text-gray-400">拖动滑块查看示意，保存后应用到所有回合。布局是本机偏好；对话框保持固定。</p>
+            <p className="text-xs text-gray-400">拖动滑块查看示意，保存后应用到所有回合。布局是本机偏好。</p>
             <div role="group" aria-label="AVG 立绘布局示意" className="relative w-full min-w-0 aspect-[16/10] min-h-[240px] max-h-[400px] overflow-hidden rounded-lg border border-wuxia-gold/30 bg-gradient-to-br from-slate-600 via-slate-800 to-black" style={avgDisplayStyle(draft)}>
                 <div className="absolute inset-x-[15%] top-[12%] h-[55%] border-4 border-amber-800/50 bg-slate-500/30" />
                 <svg viewBox="0 0 180 400" aria-label="示意立绘" data-avg-portrait-stage={receded ? 'receded' : 'active'} className="avg-stage-portrait">
@@ -82,7 +85,7 @@ const AvgSettings: React.FC<{ settings: 游戏设置结构; onSave: (settings: �
                     <path d="M58 26 Q90 -12 122 26 L119 46 Q90 12 61 46Z" fill="#322b2a" />
                     <path d="M64 150 L116 150" stroke="#c79e55" strokeWidth="13" />
                 </svg>
-                <div className="absolute z-10 left-2 right-2 bottom-2 sm:left-5 sm:right-5 sm:bottom-5 rounded-lg border border-amber-400/50 bg-black/85 p-3 min-h-[100px]">
+                <div className="avg-stage-dialogue absolute z-10 rounded-lg border border-amber-400/50 bg-black/85 p-3 min-h-[100px] max-h-[55%] overflow-auto">
                     <strong className="text-amber-200 text-sm">{receded ? '旁白' : '人物对白'}</strong><p className="mt-3 text-sm text-gray-200">立绘大小和位置示意；切换旁白查看缩小与透明效果。</p></div>
             </div>
             <div className="flex gap-2 text-sm">{[false, true].map(value => <button key={String(value)} type="button" aria-pressed={receded === value} className={`rounded border px-3 py-1 ${receded === value ? 'border-wuxia-gold text-wuxia-gold' : 'border-gray-600 text-gray-400'}`} onClick={() => setReceded(value)}>{value ? '旁白预览' : '对白预览'}</button>)}</div>
@@ -91,7 +94,8 @@ const AvgSettings: React.FC<{ settings: 游戏设置结构; onSave: (settings: �
                 <input className="w-full mt-2 accent-amber-500" type="range" aria-label={control.label} min={control.min} max={control.max} step={1} value={draft[control.key]} onChange={event => { setDraft({ ...draft, [control.key]: Number(event.target.value) }); setLayoutMessage(''); }} />
             </label>)}</div>
             <p className="text-xs text-gray-400">左右负值向左，正值向右；上下负值向上，正值向下。旁白大小以当前对白立绘为基准；不透明度越低越透明。</p>
-            <button type="button" className="rounded bg-wuxia-gold text-black font-bold px-4 py-2" onClick={() => { try { saveAvgDisplay(draft); setLayoutMessage('立绘布局已保存。'); } catch { setLayoutMessage('保存失败，请检查浏览器本地存储空间。'); } }}>保存立绘布局</button>
+            <p className="text-xs text-gray-400">对话框左右位置：0% 靠左、50% 居中、100% 靠右；上移距离越大位置越高。窄屏对话框保持全宽，避免文字过窄。</p>
+            <button type="button" className="rounded bg-wuxia-gold text-black font-bold px-4 py-2" onClick={() => { try { saveAvgDisplay(draft); setLayoutMessage('AVG 布局已保存。'); } catch { setLayoutMessage('保存失败，请检查浏览器本地存储空间。'); } }}>保存 AVG 布局</button>
             {layoutMessage && <p role="status" className="text-sm text-wuxia-gold">{layoutMessage}</p>}
         </section>
             <div className="space-y-3 rounded-md border border-wuxia-gold/20 bg-black/30 p-4">
