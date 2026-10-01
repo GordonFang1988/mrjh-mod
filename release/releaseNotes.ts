@@ -4,6 +4,15 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-01', date: '2026年10月1日', updates: [{
+        id: '2026-10-01-v1.0.6', time: '23:52', version: 'v1.0.6',
+        title: '修复 AVG 开局协议漏发',
+        summary: '修复普通开局已启用 AVG，却未向剧情模型发送场景协议、导致背景空白的问题。',
+        items: [
+            '将开局输出协议与 AVG 场景协议写入实际请求消息，剧情模型可在第 0 回合提供镜头和结构化分类。',
+            '验证普通、GPT、酒馆与流式开局的请求、场景解析、图库匹配及诊断记录，关闭 AVG 时不发送场景协议。',
+            '旧开局缺少分类时仍保留中性背景，不按地名或正文猜测场景，不自动重跑剧情请求。'
+        ]
+    }, {
         id: '2026-10-01-v1.0.5', time: '20:56', version: 'v1.0.5',
         title: '完善 AVG 场景匹配与字段保留',
         summary: '遍历现有图库，修复相近空间、可选分类、镜头读取和场景持续绑定中的多处缺口。',

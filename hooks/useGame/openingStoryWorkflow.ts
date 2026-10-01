@@ -700,6 +700,8 @@ export const 执行开场剧情生成工作流 = async (
             pushOpening('system', openingContext.contextPieces.字数设置提示词);
             pushOpening('system', openingStyleAssistantPrompt);
             pushOpening('system', openingRealWorldModePrompt);
+            // An explicit message chain is sent as-is; secondary request options do not add the protocol.
+            pushOpening('system', openingOutputProtocolPrompt);
             pushOpening('user', openingCombinedExtraPrompt);
             pushOpening('user', openingDisclaimerRequirementPrompt || '');
             pushOpening('system', openingCotPrompt);
