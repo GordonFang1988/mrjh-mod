@@ -1,6 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAvgImmersive } from '../../../services/avg/immersive';
 
 type QuickRestartMode = 'world_only' | 'opening_only' | 'all';
 
@@ -103,6 +104,7 @@ const InputArea: React.FC<Props> = ({
     openingPlanningProgress = null,
     openingVariableGenerationProgress = null
 }) => {
+    const immersive = useAvgImmersive();
     const [content, setContent] = useState('');
     const [isStreaming, setIsStreaming] = useState(true);
     const [lastSentContent, setLastSentContent] = useState('');
@@ -395,14 +397,17 @@ const InputArea: React.FC<Props> = ({
         { id: 'world', label: '动态世界', progress: effectiveWorldEvolutionProgress },
         { id: 'planning', label: '规划分析', progress: effectivePlanningProgress }
     ];
-    const queueVisible = pipelineStages.some((stage) => Boolean(stage.progress));
+    const queueVisible = pipelineStages.some((stage) => Boolean(stage.progress)) || (immersive.active && busy);
     const historyStages = pipelineStages.filter((stage) => {
         const commandTexts = (stage.progress as { commandTexts?: string[] } | null)?.commandTexts;
         return Array.isArray(commandTexts) && commandTexts.length > 0;
     });
     const currentRunningStage = pipelineStages.find((stage) => stage.progress?.phase === 'start');
     const latestFinishedStage = [...pipelineStages].reverse().find((stage) => stage.progress && stage.progress.phase !== 'start');
-    const queueRunning = Boolean(currentRunningStage);
+    const queueRunning = Boolean(currentRunningStage) || (immersive.active && busy);
+    const queueStatusText = currentRunningStage ? `${currentRunningStage.label}处理中`
+        : busy ? pipelineStages.some(stage => stage.progress?.phase === 'error') ? '等待重试或跳过' : '请求处理中'
+        : pipelineStages.some(stage => stage.progress?.phase === 'error') ? '阶段失败' : '处理结束';
     const queueBadgeClass = queueRunning
         ? 'border-wuxia-cyan/60 bg-gradient-to-r from-wuxia-cyan/20 via-wuxia-gold/15 to-wuxia-cyan/20 text-wuxia-cyan animate-pulse shadow-[0_0_18px_rgba(34,211,238,0.2)]'
         : 'border-wuxia-gold/35 bg-black text-wuxia-gold/90 shadow-[0_10px_30px_rgba(0,0,0,0.35)]';
@@ -424,20 +429,26 @@ const InputArea: React.FC<Props> = ({
     };
 
     useEffect(() => {
-        const hasOpeningQueueProgress = [openingWorldEvolutionProgress, openingPlanningProgress]
+        const hasOpeningQueueProgress = [openingWorldEvolutionProgress, openingPlanningProgress, openingVariableGenerationProgress]
             .some((item) => item?.phase === 'start' || item?.phase === 'done' || item?.phase === 'error' || item?.phase === 'skipped' || item?.phase === 'cancelled');
         if (hasOpeningQueueProgress) {
             setQueueCollapsed(false);
         }
-    }, [openingWorldEvolutionProgress, openingPlanningProgress]);
+    }, [openingWorldEvolutionProgress, openingPlanningProgress, openingVariableGenerationProgress]);
 
     useEffect(() => {
-        const hasMainQueueError = [polishProgress, worldEvolutionProgress, planningProgress]
+        const hasMainQueueError = [polishProgress, worldEvolutionProgress, planningProgress, variableGenerationProgress]
             .some((item) => item?.phase === 'error');
         if (hasMainQueueError) {
             setQueueCollapsed(false);
         }
-    }, [polishProgress, worldEvolutionProgress, planningProgress]);
+    }, [polishProgress, worldEvolutionProgress, planningProgress, variableGenerationProgress]);
+
+    useEffect(() => {
+        if (immersive.active && queueRunning) setQueueCollapsed(false);
+    }, [immersive.active, queueRunning]);
+
+    const renderQueueLayer = (panel: React.ReactNode) => immersive.active ? createPortal(panel, document.body) : panel;
 
     return (
         <div className="shrink-0 relative z-20 bg-gradient-to-t from-ink-black/90 via-ink-black/75 to-transparent pb-4 px-4 flex flex-col gap-1 backdrop-blur-[2px]">
@@ -765,11 +776,11 @@ const InputArea: React.FC<Props> = ({
                 </div>
             ), document.body)}
 
-            {queueVisible && (
-                <div className="pointer-events-none absolute left-2 right-2 bottom-full mb-2 z-40 sm:left-4 sm:right-4">
+            {queueVisible && renderQueueLayer(
+                <div aria-label="独立更新阶段队列" role="region" data-avg-runtime-queue={immersive.active ? 'floating' : 'inline'}
+                    style={immersive.active ? { bottom: 'calc(var(--avg-input-height, 130px) + 8px)' } : undefined}
+                    className={`pointer-events-none left-2 right-2 sm:left-4 sm:right-4 ${immersive.active ? 'fixed z-[180]' : 'absolute bottom-full mb-2 z-40'}`}>
                     <div className="mx-auto w-full max-w-5xl pointer-events-auto space-y-1">
-                        {queueVisible && (
-                            <>
                         {!queueCollapsed && (
                             <div className="flex justify-center">
                                 <button
@@ -788,19 +799,20 @@ const InputArea: React.FC<Props> = ({
                                 <button
                                     type="button"
                                     onClick={() => setQueueCollapsed(false)}
-                                    className={`h-7 w-28 border text-[11px] tracking-[0.3em] transition hover:bg-neutral-950 ${queueBadgeClass}`}
+                                    className={`h-7 max-w-full px-6 border text-[11px] tracking-wide transition hover:bg-neutral-950 ${queueBadgeClass}`}
                                     style={{ clipPath: 'polygon(12% 0%, 88% 0%, 100% 100%, 0% 100%)' }}
                                     title="展开独立更新阶段队列"
                                 >
-                                    {queueRunning ? '队列中' : '队列'}
+                                    <span role="status">{immersive.active ? queueStatusText : queueRunning ? '队列中' : '队列'}</span>
                                 </button>
                             </div>
                         ) : (
-                            <div className="rounded-lg border border-wuxia-gold/25 bg-black p-2 space-y-2 shadow-[0_18px_60px_rgba(0,0,0,0.45)] max-h-[34svh] sm:max-h-[42vh] md:max-h-[55vh] overflow-y-auto no-scrollbar">
+                            <div style={immersive.active ? { maxHeight: 'min(55dvh, calc(100dvh - var(--avg-top-height, 70px) - var(--avg-input-height, 130px) - 44px))' } : undefined}
+                                className="rounded-lg border border-wuxia-gold/25 bg-black p-2 space-y-2 shadow-[0_18px_60px_rgba(0,0,0,0.45)] max-h-[34svh] sm:max-h-[42vh] md:max-h-[55vh] overflow-y-auto no-scrollbar">
                                 <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
                                     <div className="text-wuxia-gold">独立更新阶段队列</div>
-                                    <div className="text-gray-400">
-                                        当前阶段：{currentRunningStage?.label || '无'}
+                                    <div className="text-gray-400" role="status">
+                                        当前阶段：{currentRunningStage?.label || (immersive.active && busy ? queueStatusText : '无')}
                                         {' | '}
                                         上一阶段结果：{latestFinishedStage ? `${latestFinishedStage.label} ${取阶段状态文案(latestFinishedStage.progress?.phase)}` : '无'}
                                     </div>
@@ -898,8 +910,6 @@ const InputArea: React.FC<Props> = ({
                                     </div>
                                 )}
                             </div>
-                        )}
-                            </>
                         )}
                     </div>
                 </div>

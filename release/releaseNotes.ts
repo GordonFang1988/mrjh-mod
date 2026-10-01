@@ -4,6 +4,16 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-01', date: '2026年10月1日', updates: [{
+        id: '2026-10-01-v1.0.3', time: '19:44', version: 'v1.0.3',
+        title: '修复 AVG 沉浸模式的后台运行提示',
+        summary: 'AVG 沉浸和全屏时也能看到请求状态与独立更新阶段队列。',
+        items: [
+            '修复队列被沉浸模式输入栏裁剪的问题，运行时自动展开在舞台上方。',
+            '主剧情请求时显示处理中提示；收起队列后仍显示当前阶段，完成与失败状态也会更新。',
+            '队列中可继续查看命令和原始回复，保留停止请求与取消变量生成操作。',
+            '开局仅运行变量生成时也显示队列，变量生成失败时自动展开详情；适配手机横竖屏。'
+        ]
+    }, {
         id: '2026-10-01-v1.0.2', time: '18:03', version: 'v1.0.2',
         title: '修复重复场景复用，完善空白背景诊断',
         summary: '已绑定场景返回时继续使用原图，诊断导出提供字段来源、绑定查询与图片加载结论。',
