@@ -4,6 +4,15 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-02', date: '2026年10月2日', updates: [{
+        id: '2026-10-02-v1.0.14', time: '17:17', version: 'v1.0.14',
+        title: '兼容旧图包中的钟灵立绘年龄标注',
+        summary: '读取旧图包时校正钟灵基础立绘与两套换装的适用年龄，16 岁档案可使用现有图片。',
+        items: [
+            '仅对天龙钟灵 TF005、TV009、TV010 的旧 18–23 岁标签校正为 16–23 岁，无需重新下载或导入图包。',
+            '天龙主题下，读档可为此前未绑定立绘的钟灵补回已有图片；角色年龄、基础脸和换装关联保持不变。',
+            '保留其他角色的年龄限制、已选立绘与生成图片；水浒主题不会自动使用天龙人物。'
+        ]
+    }, {
         id: '2026-10-02-v1.0.13', time: '13:48', version: 'v1.0.13',
         title: '修复多份场景表只读取第一份的问题',
         summary: '完整读取模型分块返回的场景分类，恢复后续镜头的背景，并支持旧存档补回遗漏场景。',

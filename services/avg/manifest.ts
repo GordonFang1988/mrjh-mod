@@ -13,6 +13,7 @@ const legacyIds = (value: unknown): string[] => Array.isArray(value) ? [...new S
 const tags = (value: unknown): string[] => Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map(item => item.trim()).slice(0, 16)
     : [];
+const legacyZhongLingPortraitIds = new Set(['TF005', 'TV009', 'TV010']);
 
 /** Metadata is the only matching source. ZIP packs provide their own image references. */
 export const parseAvgManifest = (raw: unknown, imageForFile: (file: string, id: string) => string =
@@ -80,10 +81,18 @@ export const parseAvgManifest = (raw: unknown, imageForFile: (file: string, id: 
             result.errors.push(`portrait[${index}] missing or conflicting verified gender/ageRange/visualAge/archetype/outfit/reusePolicy`);
             continue;
         }
+        // The approved Zhong Ling base and two outfits shipped with an 18–23
+        // design range. Read-time calibration makes these same images usable at 16;
+        // keep the installed manifest, NPC age, visual design and identity unchanged.
+        const legacyZhongLing = legacyZhongLingPortraitIds.has(common.id)
+            && item.characterKey === 'tianlong:zhong-ling' && item.gender === '女'
+            && normalizeAvgTheme(item.themeId || source.themeId) === 'tianlong'
+            && ageMin === 18 && ageMax === 23;
+        const calibratedAgeMin = legacyZhongLing ? 16
+            : item.characterKey === 'shuihu_jinpingmei:wu-da-lang' && Number(ageMin) === 35 ? 30 : Number(ageMin);
         result.portraits.push({ id: common.id, image: common.image, version: common.version, legacyAssetIds: legacyIds(common.item.legacyAssetIds),
-            gender: item.gender, // Correct the shipped Wu Da-lang metadata for early-story saves at age 30.
-            // Other portraits retain their exact chronological age limits.
-            ageRange: { min: item.characterKey === 'shuihu_jinpingmei:wu-da-lang' && Number(ageMin) === 35 ? 30 : Number(ageMin), max: Number(ageMax) },
+            gender: item.gender,
+            ageRange: { min: calibratedAgeMin, max: Number(ageMax) },
             visualAge: item.visualAge as AvgPortraitAsset['visualAge'],
             reusePolicy: item.reusePolicy, portraitVerified: true, styleFamily,
             roleTags: tags(item.roleTags), appearanceTags: tags(item.appearanceTags), profile,
