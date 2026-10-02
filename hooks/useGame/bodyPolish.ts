@@ -15,7 +15,7 @@ import { 核心_文章优化思维链 } from '../../prompts/core/cotPolish';
 import { 构建COT伪装提示词 } from './promptRuntime';
 import { 环境时间转标准串 } from './timeUtils';
 import { 规范化环境信息, 构建完整地点文本 } from './stateTransforms';
-import { readAvgSceneMarker, writeAvgSceneMarker, avgSceneBodyLines, avgSceneSegmentRefs } from '../../services/avg/sceneProtocol';
+import { readAvgSceneMarker, writeAvgSceneMarker, avgSceneBodyLines, avgSceneSegmentRefs, isAvgSceneMarker } from '../../services/avg/sceneProtocol';
 
 type 正文日志结构 = Array<{ sender: string; text: string; avgSceneRef?: string }>;
 
@@ -81,7 +81,7 @@ const 解析正文日志文本 = (bodyText: string): 正文日志结构 => {
         if (!line) continue;
         const marker = readAvgSceneMarker(line);
         if (marker) { sceneRef = marker; current = null; continue; }
-        if (/^<\s*\/?\s*镜头(?=\s|\/|>)/.test(line)) { sceneRef = undefined; current = null; continue; }
+        if (isAvgSceneMarker(line)) { sceneRef = undefined; current = null; continue; }
         const match = line.match(/^【\s*([^】]+?)\s*】\s*(.*)$/);
         if (match) {
             const sender = 规范化正文发送者(match[1]);

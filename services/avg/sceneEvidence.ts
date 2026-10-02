@@ -5,6 +5,7 @@ import { APP_VERSION } from '../../release/version';
 import { AVG_VOCABULARY_VERSION, AVG_FULL_PROTOCOL_PROMPT } from './vocabulary';
 import { parseStoryRawText } from '../ai/storyResponseParser';
 import { parseJsonWithRepair } from '../../utils/jsonRepair';
+import { scanAvgSceneMarkers } from './sceneProtocol';
 
 export const snapshotAvgSceneFields = (response?: GameResponse): AvgSceneFieldSnapshot => ({
     hintCount: response?.avgSceneHints?.length || 0,
@@ -69,6 +70,9 @@ export const buildAvgSceneSourceEvidence = (turn?: 聊天记录结构) => {
     const jsonResponse = jsonRoot && Array.isArray(jsonRoot.logs) ? jsonRoot : undefined;
     // Thought sections can mention output examples; inspect the actual reply outside them.
     const visibleRaw = raw.replace(/<\s*(thinking|think)(?=\s|>)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
+    const rawCameraMarkers = scanAvgSceneMarkers(Array.isArray(jsonResponse?.logs)
+        ? jsonResponse.logs.map(log => typeof log === 'string' ? log : typeof log?.text === 'string' ? log.text : '').join('\n')
+        : visibleRaw);
     const blocks = jsonResponse ? [] : [...visibleRaw.matchAll(/<\s*演出场景(?=\s|>)[^>]*>([\s\S]*?)(?:<\s*\/\s*演出场景\s*>|$)/gi)];
     const rawBlocks = blocks.slice(0, 4).map(match => {
         const json = parseJsonWithRepair<unknown>(match[1]);
@@ -98,7 +102,9 @@ export const buildAvgSceneSourceEvidence = (turn?: 聊天记录结构) => {
     }
     return {
         rawAvailable: !!raw.trim(), rawLength: raw.length, wireFormat: jsonResponse ? 'json' : 'tagged-or-text', rawSceneBlockCount: blocks.length, rawBlocks,
-        rawSceneMarkerCount: jsonResponse ? 0 : [...visibleRaw.matchAll(/<\s*镜头\s+[^>]*ref\s*=/gi)].length,
+        rawSceneMarkerCount: rawCameraMarkers.filter(marker => !!marker.ref).length,
+        nonCanonicalSceneMarkerCount: rawCameraMarkers
+            .filter(marker => !!marker.ref && !/^<\s*镜头\s+ref\s*=\s*(["'])[^\r\n]*\1\s*\/\s*>$/.test(marker.text)).length,
         jsonPayload, jsonPayloadUnreadable, reparseOptions, reparseError, reparsed, reparsedWithoutTagRepair,
         // Historic requests cannot be reconstructed from current settings.
         request: turn?.avgSceneTrace?.request || null,
@@ -168,6 +174,8 @@ export const diagnoseAvgSceneDisplay = (input: {
     if (sourceDiagnosis.code !== 'scene-fields-present') return sourceDiagnosis;
     if (!response?.avgPresentation) return result('scene-presentation-missing', '已保存结构化场景分类，但该回合没有演出快照。');
     if (response?.avgPresentation?.diagnostic === 'no-scene-markers') {
+        if (source.nonCanonicalSceneMarkerCount && (source.reparsed?.markedLogCount || 0) > 0)
+            return result('scene-marker-format-recoverable', '镜头标记使用了非标准括号或引号，旧解析未建立转场；当前解析器可识别，重新读档可恢复。');
         if ((source.reparsed?.markedLogCount || 0) > 0 || (source.processing?.parsed?.markedLogCount || 0) > 0)
             return result('scene-markers-not-retained', '原始回复或解析阶段有镜头引用，但当前正文未保留。');
         return result('scene-markers-absent', '本回合有多份场景分类，但正文没有镜头引用，无法确定使用哪份。');

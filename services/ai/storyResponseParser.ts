@@ -1,7 +1,7 @@
 import { GameResponse } from '../../types';
 import { parseJsonWithRepair } from '../../utils/jsonRepair';
 import { normalizeAvgHints } from '../avg/vocabulary';
-import { readAvgSceneMarker, avgSceneBodyLines } from '../avg/sceneProtocol';
+import { readAvgSceneMarker, avgSceneBodyLines, isAvgSceneMarker, normalizeAvgSceneLogs } from '../avg/sceneProtocol';
 
 export interface StoryParseOptions {
     validateTagCompleteness?: boolean;
@@ -635,7 +635,7 @@ const 解析正文日志 = (body: string): Array<{ sender: string; text: string 
             continue;
         }
         // A malformed marker is still metadata, never dialogue or a game instruction.
-        if (/^<\s*\/?\s*镜头(?=\s|\/|>)/.test(line)) {
+        if (isAvgSceneMarker(line)) {
             sceneRef = undefined;
             current = null;
             continue;
@@ -1293,7 +1293,7 @@ const 修复思考区后半段标签协议文本 = (sourceText: string): string 
 };
 
 const 归一化JSON结构响应 = (raw: any): GameResponse => {
-    const logs = Array.isArray(raw?.logs)
+    const logs = normalizeAvgSceneLogs<import('../../types').GameLog>(Array.isArray(raw?.logs)
         ? raw.logs
             .map((item: any) => {
                 if (typeof item === 'string') {
@@ -1309,7 +1309,7 @@ const 归一化JSON结构响应 = (raw: any): GameResponse => {
                 return null;
             })
             .filter((item: any) => item && item.text.trim().length > 0)
-        : [];
+        : []);
 
     const thinkingFieldKeys = [
         't_input',

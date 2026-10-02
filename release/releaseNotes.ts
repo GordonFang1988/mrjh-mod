@@ -4,6 +4,16 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-02', date: '2026年10月2日', updates: [{
+        id: '2026-10-02-v1.0.12', time: '12:02', version: 'v1.0.12',
+        title: '修复镜头格式偏差导致的整回合空白',
+        summary: '统一镜头标记的容错解析，恢复混入正文的转场信息，并支持修复已保存的空白回合。',
+        items: [
+            '兼容中英文括号混用、全角符号、弯引号和省略引号等常见格式，正确识别段落所属镜头。',
+            '主剧情标签、JSON 回复、正文润色和诊断共用镜头解析规则，避免标记显示成普通对白。',
+            '读档从原有标记与场景表恢复转场，确认本地图片可读取后应用；保留原始回复、对白、命令和手工背景。',
+            '验证用户回合的密道、峡谷与门派前庭三个镜头，24 段实际播放、重播及重复读档通过。'
+        ]
+    }, {
         id: '2026-10-02-v1.0.11', time: '09:21', version: 'v1.0.11',
         title: '修复山中石室误选水井背景',
         summary: '缺少场景分类时，山中石室优先从岩洞与石室素材查找，洞口和洞内分开匹配。',
