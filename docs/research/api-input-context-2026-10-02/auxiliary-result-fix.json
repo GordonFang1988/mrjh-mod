@@ -1,0 +1,17 @@
+{
+  "scope": "offline evidence/output regressions; no real provider or player save",
+  "legacyBeforeChars": 21,
+  "novel": {
+    "planning": {
+      "sourceChars": 440499,
+      "sentChars": 2769
+    },
+    "world_evolution": {
+      "sourceChars": 440525,
+      "sentChars": 2769
+    }
+  },
+  "legacySnapshotChars": 121,
+  "appliedCommands": 1,
+  "reasoningOnlyRejected": true
+}

@@ -50,6 +50,7 @@ import {
     解析动态世界块,
     解析命令块
 } from './storyResponseParser';
+import { recordAuxiliaryResult } from './apiDiagnostics';
 
 export interface ConnectionTestResult {
     ok: boolean;
@@ -88,6 +89,7 @@ export interface VariableCalibrationResult {
 }
 
 export interface PlanningAnalysisResult {
+    diagnosticId?: string;
     shouldUpdate: boolean;
     reason: string;
     commands: TavernCommand[];
@@ -1412,14 +1414,7 @@ const 解析规划补丁结果 = (
     if (!source) {
         return { shouldUpdate: false, reason: '', commands: [], notes: [] };
     }
-    const thinkingSegment = 提取首尾思考区段(source);
-    let textWithoutThinking = (thinkingSegment.matched ? thinkingSegment.textWithoutThinking : source).trim();
-    if (thinkingSegment.matched && !textWithoutThinking) {
-        textWithoutThinking = source
-            .replace(/<\s*\/\s*(thinking|think)\s*>/gi, '')
-            .replace(/<\s*(thinking|think)\s*>/gi, '')
-            .trim();
-    }
+    const textWithoutThinking = source.replace(/<\s*(think|thinking)\s*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '').trim();
     const noteBlock = 提取首个标签内容(textWithoutThinking, '说明');
     const commandBlock = 提取首个标签内容(textWithoutThinking, '命令');
     const notes = 解析说明块(noteBlock);
@@ -1453,7 +1448,6 @@ export const generatePlanningAnalysis = async (
 ): Promise<PlanningAnalysisResult> => {
     if (!apiConfig.apiKey) throw new Error('Missing API Key');
     const aiRolePrompt = 构建AI角色声明提示词(boundedText(params.playerName, 80));
-    const cotPseudoPrompt = 替换COT伪装身份占位(默认COT伪装历史消息提示词.trim(), aiRolePrompt);
     const fandomSystemPrompt = params.fandomEnabled ? 同人规划分析附加系统提示词 : '';
     const fandomCotPrompt = params.fandomEnabled ? 同人规划分析附加COT提示词 : '';
     const fixed: Array<{name: InputSectionMetric['name']; message: 通用消息; required: boolean}> = [
@@ -1507,17 +1501,38 @@ export const generatePlanningAnalysis = async (
     const packed = budgetAuxiliaryMessages<通用消息>('planning', [
         ...fixed,
         {name: 'extra', message: {role: 'system', content: '【附加资料】\n' + boundedExtra}, limit: 5000, records: true},
-        {name: 'story', message: {role: params.gptMode ? 'user' : 'assistant', content: taskPrompt}, required: true},
-        ...(!params.gptMode ? [{name: 'trigger' as const, message: {role: 'user' as const, content: '开始任务'}, required: true}] : []),
-        {name: 'analysis', message: {role: 'assistant', content: cotPseudoPrompt}, limit: 200}
+        {name: 'story', message: {role: 'user', content: taskPrompt
+            + '\n最终回答只输出完整 <说明> 与 <命令>；证据不足写明原因并输出 <命令>无</命令>。'}, required: true}
     ], [...metrics, ...(params.contextMetrics || []), {name: 'extra', sourceChars: countChars(params.extraPrompt || ''), sentChars: countChars(boundedExtra)}]);
+    let diagnosticId: string | undefined;
+    let onlyNativeReasoning = false;
     const rawText = await 请求模型文本(auxiliaryOutputConfig(apiConfig, 'planning'),
         规范化文本补全消息链(packed.messages, {保留System: true, 合并同角色: false}), {
             temperature: 0.3, signal, errorDetailLimit: Number.POSITIVE_INFINITY, diagnosticTask: 'planning',
-            streamOptions: {stream: true}, inputBreakdown: packed.inputBreakdown, rejectTruncated: true
+            streamOptions: {stream: true}, inputBreakdown: packed.inputBreakdown, rejectTruncated: true,
+            onDiagnosticCall: id => { diagnosticId = id; },
+            onResponseChannels: counts => { onlyNativeReasoning = counts.reasoningChars > 0 && counts.contentChars === 0; }
         });
-    校验辅助输出完整性(rawText);
+    const finalText = rawText.replace(/<\s*(think|thinking)\s*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '').trim();
+    try {
+        if (onlyNativeReasoning || !finalText) {
+            recordAuxiliaryResult(diagnosticId, {status: 'invalid-output', reason: rawText.trim() ? 'reasoning-only' : 'empty-output'});
+            throw new Error(rawText.trim()
+                ? '规划接口仅返回思考，缺少最终说明与命令；本次未更新规划，请重试当前阶段'
+                : '规划接口返回空结果；本次未更新规划，请重试当前阶段');
+        }
+        校验辅助输出完整性(rawText);
+    } catch (error) {
+        if (finalText) recordAuxiliaryResult(diagnosticId, {status: 'invalid-output', reason: 'invalid-format'});
+        throw error;
+    }
     const parsed = 解析规划补丁结果(rawText, '统一规划分析');
+    const explicitNoUpdate = /<\s*命令\s*>\s*(?:无|\[\s*\])\s*<\s*\/\s*命令\s*>/i.test(finalText)
+        && /<\s*说明\s*>[\s\S]+?<\s*\/\s*说明\s*>/i.test(finalText);
+    if (!parsed.commands.length && !explicitNoUpdate) {
+        recordAuxiliaryResult(diagnosticId, {status: 'invalid-output', reason: 'invalid-format', parsedCommands: 0});
+        throw new Error('规划最终回答缺少有效命令或明确的无需更新声明；本次未更新规划');
+    }
     let commands = filterTaskViewCommands(parsed.commands, [story, heroine]);
     // Partial gate evidence must not advance a chapter or mark it completed.
     const incompleteGate = [story, heroine].some(view => view.incomplete.some(path =>
@@ -1526,7 +1541,10 @@ export const generatePlanningAnalysis = async (
         || /资料未完整展示/.test(boundedExtra);
     if (incompleteGate) commands = commands.filter(cmd => !/剧情\.当前章节(?:$|\.(?:标题|当前分解组|原著章节标题|原著推进状态)$)/.test(cmd.key));
     commands = commands.filter(cmd => !/^(?:gameState\.)?(?:剧情|剧情规划|同人剧情规划|女主剧情规划|同人女主剧情规划)$/.test(cmd.key));
-    return {...parsed, shouldUpdate: parsed.shouldUpdate && commands.length > 0, commands, rawText,
+    recordAuxiliaryResult(diagnosticId, {status: !parsed.shouldUpdate ? 'no-update' : commands.length ? 'ready' : 'filtered',
+        reason: !parsed.shouldUpdate ? 'not-needed' : !commands.length ? 'state-guard' : undefined,
+        parsedCommands: parsed.commands.length, acceptedCommands: commands.length, appliedCommands: 0});
+    return {...parsed, shouldUpdate: parsed.shouldUpdate && commands.length > 0, commands, rawText, diagnosticId,
         reason: parsed.shouldUpdate && commands.length === 0 ? '规划证据或索引不完整，已保留原状态' : parsed.reason};
 };
 

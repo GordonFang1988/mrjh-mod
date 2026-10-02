@@ -21,6 +21,7 @@ import { 获取激活小说拆分注入文本 } from '../../services/novelDecomp
 import { 按功能开关过滤提示词内容, 裁剪修炼体系上下文数据 } from '../../utils/promptFeatureToggles';
 import { 同步剧情小说分解时间校准 } from '../../services/novelDecompositionCalibration';
 import { boundedText, type InputSectionMetric } from '../../utils/auxiliaryContext';
+import { recordAuxiliaryResult } from '../../services/ai/apiDiagnostics';
 
 type 规划更新工作流依赖 = {
     apiConfig: any;
@@ -345,6 +346,10 @@ export const 创建规划更新工作流 = (deps: 规划更新工作流依赖) =
             ? 过滤规划补丁命令(result.commands, activeHeroinePlanTargets)
             : [];
         const commands = [...storyCommands, ...storyPlanCommands, ...heroinePlanCommands];
+        if (result.shouldUpdate && !commands.length) recordAuxiliaryResult(result.diagnosticId, {
+            status: 'filtered', reason: 'state-guard', parsedCommands: result.commands.length,
+            acceptedCommands: 0, appliedCommands: 0
+        });
         if (!result.shouldUpdate || commands.length === 0) {
             return {
                 updated: false,
@@ -386,6 +391,7 @@ export const 创建规划更新工作流 = (deps: 规划更新工作流依赖) =
         if (heroineEnabled && fandomEnabled) {
             deps.设置同人女主剧情规划(patched.fandomHeroinePlan);
         }
+        recordAuxiliaryResult(result.diagnosticId, {status: 'applied', acceptedCommands: commands.length, appliedCommands: commands.length});
         void deps.performAutoSave({
             story: syncedPatchedStory,
             storyPlan: patched.storyPlan,

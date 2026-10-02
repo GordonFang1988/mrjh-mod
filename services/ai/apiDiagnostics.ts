@@ -6,6 +6,11 @@ const tasks = ['story', 'world-evolution', 'planning', 'variable', 'recall', 'po
 export type ApiDiagnosticTask = typeof tasks[number];
 type Status = 'running' | 'success' | 'error' | 'cancelled' | 'fallback';
 type Usage = { inputTokens?: number; outputTokens?: number; reasoningTokens?: number };
+export type AuxiliaryResultMetric = {
+    status: 'invalid-output' | 'no-update' | 'filtered' | 'ready' | 'applied';
+    reason?: 'reasoning-only' | 'empty-output' | 'invalid-format' | 'state-guard' | 'not-needed';
+    parsedCommands?: number; acceptedCommands?: number; appliedCommands?: number;
+};
 export type ApiAttemptMetric = {
     number: number; requestedStream: boolean; actualStream?: boolean; startedAt: number; durationMs?: number;
     status: Status; httpStatus?: number; headersMs?: number; firstByteMs?: number;
@@ -19,6 +24,7 @@ export type ApiCallMetric = {
     maxOutputTokens?: number; requestedStream: boolean; retryCount: number; retryWaitMs: number;
     fallbackCount: number; attempts: ApiAttemptMetric[]; errorKind?: string;
     inputBreakdown?: AuxiliaryInputMetric;
+    result?: AuxiliaryResultMetric;
 };
 const clock = () => performance.now();
 const millis = (value: number) => Math.max(0, Math.round(value));
@@ -29,6 +35,13 @@ const origin = (value: unknown) => {
     catch { return ''; }
 };
 const numeric = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+const safeResult = (value: any): AuxiliaryResultMetric | undefined => {
+    if (!['invalid-output','no-update','filtered','ready','applied'].includes(value?.status)) return undefined;
+    return {status: value.status,
+        reason: ['reasoning-only','empty-output','invalid-format','state-guard','not-needed'].includes(value.reason) ? value.reason : undefined,
+        parsedCommands: numeric(value.parsedCommands), acceptedCommands: numeric(value.acceptedCommands),
+        appliedCommands: numeric(value.appliedCommands)};
+};
 const sectionNames = ['rules','identity','schema','analysis','extra','world','social','story','heroine','environment','body','history','memory','plan','commands','hints','lore','recall','query','trigger','novel','worldbook'];
 const safeBreakdown = (value: any): AuxiliaryInputMetric | undefined => {
     if (value?.version !== 1 || !numeric(value.budgetChars) || !Array.isArray(value.sections)) return undefined;
@@ -80,7 +93,8 @@ const restore = (value: any): ApiCallMetric | undefined => {
         inputChars:numeric(value.inputChars) || 0, messageCount:numeric(value.messageCount) || 0,
         maxOutputTokens:numeric(value.maxOutputTokens), requestedStream:value.requestedStream === true,
         retryCount:numeric(value.retryCount) || 0, retryWaitMs:numeric(value.retryWaitMs) || 0,
-        fallbackCount:numeric(value.fallbackCount) || 0, attempts,errorKind:safeText(value.errorKind), inputBreakdown:safeBreakdown(value.inputBreakdown) };
+        fallbackCount:numeric(value.fallbackCount) || 0, attempts,errorKind:safeText(value.errorKind), inputBreakdown:safeBreakdown(value.inputBreakdown),
+        result:safeResult(value.result) };
 };
 const load = () => {
     if (loaded) return;
@@ -98,6 +112,18 @@ const persist = () => {
     try {
         if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify({omitted,records}));
     } catch { storageAvailable = false; }
+};
+export const recordAuxiliaryResult = (id: string | undefined, result: AuxiliaryResultMetric): void => {
+    if (!id) return;
+    const record = records.find(item => item.id === id);
+    if (record) {
+        const clean = safeResult(result);
+        if (clean) record.result = {...clean,
+            parsedCommands: clean.parsedCommands ?? record.result?.parsedCommands,
+            acceptedCommands: clean.acceptedCommands ?? record.result?.acceptedCommands,
+            appliedCommands: clean.appliedCommands ?? record.result?.appliedCommands};
+        persist();
+    }
 };
 export const beginApiDiagnostic = (input: {
     task?: ApiDiagnosticTask; model: string; provider?: string; endpoint: string; transportEndpoint?: string; proxied: boolean;
@@ -118,6 +144,11 @@ export const beginApiDiagnostic = (input: {
     if (records.length > API_DIAGNOSTIC_LIMIT) { omitted += records.length-API_DIAGNOSTIC_LIMIT; records=records.slice(-API_DIAGNOSTIC_LIMIT); }
     persist();
     return {
+        id: record.id,
+        outputChannels: () => {
+            const attempt = record.attempts.at(-1);
+            return {contentChars: attempt?.contentChars || 0, reasoningChars: attempt?.reasoningChars || 0};
+        },
         outputTruncated: () => record.attempts.at(-1)?.finishReason === 'length',
         retry: () => { record.retryCount += 1; persist(); },
         retryWait: (duration: number) => { record.retryWaitMs += millis(duration); persist(); },
@@ -145,10 +176,11 @@ export const beginApiDiagnostic = (input: {
                 byte: () => { if (metric.firstByteMs === undefined) metric.firstByteMs=elapsed(); },
                 payload: (payload: any, streamed: boolean) => {
                     const choice=payload?.choices?.[0],delta=streamed ? choice?.delta || choice?.message : choice?.message;
-                    const content=typeof delta?.content==='string' ? delta.content : Array.isArray(delta?.content)
+                    const content=typeof delta?.content==='string' && delta.content ? delta.content : Array.isArray(delta?.content)
                         ? delta.content.map((part: any)=>typeof part==='string' ? part : part?.text || '').join('') : '';
+                    const finalContent = content || (streamed && typeof choice?.message?.content === 'string' ? choice.message.content : '');
                     const reasoning=delta?.reasoning_content ?? delta?.reasoning ?? delta?.reasoning_text;
-                    const contentChars=Array.from(content).length,reasoningChars=typeof reasoning==='string' ? Array.from(reasoning).length : 0;
+                    const contentChars=Array.from(finalContent).length,reasoningChars=typeof reasoning==='string' ? Array.from(reasoning).length : 0;
                     const first=metric.firstOutputMs === undefined;
                     if (streamed && (contentChars || reasoningChars)) {
                         metric.observedStream=true;
@@ -199,6 +231,7 @@ export const exportApiDiagnostics = () => {
         return group.length ? [{task,label:labels[task],calls:group.length,
             failures:group.filter(call=>call.status==='error').length,running:group.filter(call=>call.status==='running' && call.live).length,
             incomplete:group.filter(call=>call.status==='running' && !call.live).length,
+            invalidResults:group.filter(call=>call.result?.status==='invalid-output').length,
             totalMs:group.reduce((sum,call)=>sum+(call.durationMs || 0),0),
             maxMs:Math.max(...group.map(call=>call.durationMs || 0)),retries:group.reduce((sum,call)=>sum+call.retryCount,0)}] : [];
     });
@@ -210,5 +243,6 @@ export const exportApiDiagnostics = () => {
             '响应头、首个网络数据、首个模型输出、首个 content 字段分别计时；非流式或降级结果没有可测的首字速度。',
             '字符速度是客户端接收区间均值，受代理缓冲影响；Token 用量仅在接口实际返回时记录。',
             'inputBreakdown.sections 是角色兼容合并前各消息的字符统计；details 是内部块和注入来源的预处理统计，存在父子关系且可能再受外层预算筛选，不能相加。inputChars 是实际发送的最终消息总量。',
+            'status 表示接口请求状态；result 表示辅助任务解析、过滤和应用结果。仅思考、无有效结果不等于无需更新；命令数量不含正文或路径。',
             '历史 running 记录可能来自刷新或中断，未记录的旧调用不能追溯计时。']};
 };

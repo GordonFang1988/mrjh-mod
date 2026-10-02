@@ -16,7 +16,7 @@ import {
     应用剧情小说时间校准到分段,
     规范化章节时间校准列表
 } from './novelDecompositionCalibration';
-import { budgetTextRecords, countChars, type InputSectionMetric } from '../utils/auxiliaryContext';
+import { boundedText, budgetTextRecords, countChars, type InputSectionMetric } from '../utils/auxiliaryContext';
 import { 获取同人角色替换规则列表 } from '../utils/openingConfig';
 
 const 读取文本 = (value: unknown): string => (typeof value === 'string' ? value : '');
@@ -868,6 +868,99 @@ const 构建统一滑窗章节注入 = (
     return lines.join('\n').trim();
 };
 
+// Build individual evidence records from the dataset, before a large chapter becomes opaque text.
+// Conditions and visibility stay whole; only descriptive prose may be explicitly excerpted.
+const 构建受限辅助滑窗 = (
+    dataset: 小说拆分数据集结构, target: 小说拆分注入目标类型,
+    story: 剧情系统结构 | null | undefined, limit: number
+): string => {
+    const window = 获取滑窗分段(dataset, story);
+    if (!window.current) return '';
+    const notice = '〔资料未完整展示；缺失条件不得视为已满足〕';
+    const rows: Array<{text: string; priority: number; position: 'current' | 'next'}> = [];
+    const sections = [
+        {segment: window.current, title: '当前章节内容', position: 'current' as const},
+        {segment: window.next, title: '下一章节内容', position: 'next' as const}
+    ];
+    const headers: string[] = [];
+    const identityLimit = Math.max(20, Math.min(180, Math.floor(limit / 40)));
+    for (const {segment, title, position} of sections) {
+        if (!segment) continue;
+        const header = [
+            '【' + title + '】',
+            '分解组号：' + 读取分解组号(segment),
+            '章节范围：' + boundedText(读取章节范围文本(segment), Math.max(40, identityLimit)),
+            '章节标题：' + boundedText(取有效文本列表(segment.章节标题).join('｜'), Math.max(40, identityLimit)),
+            '时间线范围：' + boundedText([segment.时间线起点, segment.时间线终点].filter(Boolean).join(' -> '), Math.max(40, identityLimit))
+        ].join('\n');
+        headers.push(header);
+        const add = (label: string, body: string, priority: number) => {
+            if (body.trim()) rows.push({text: header + '\n' + label + '：\n' + body, priority, position});
+        };
+        for (const [label, values, priority] of [
+            ['原著硬约束', segment.原著硬约束, 6],
+            ['可提前铺垫', segment.可提前铺垫, 2]
+        ] as const) {
+            (values || []).forEach((item, index) => {
+                const normalized = 规范化可见信息条目(item);
+                if (normalized.内容) add(label, '[' + (index + 1) + '] 内容：' + normalized.内容
+                    + '\n' + 构建信息可见性行(normalized.信息可见性).join('\n'), priority);
+            });
+        }
+        (segment.关键事件 || []).forEach((event, index) => {
+            const body = [
+                '[' + (index + 1) + '] ' + 读取文本(event.事件名),
+                '事件说明：' + boundedText(读取文本(event.事件说明), 180),
+                '开始时间：' + (event.开始时间 || '无'), '最早开始时间：' + (event.最早开始时间 || '无'),
+                '最迟开始时间：' + (event.最迟开始时间 || '无'), '结束时间：' + (event.结束时间 || '无'),
+                '前置条件：' + 拼接列表字段(event.前置条件),
+                '触发条件：' + 拼接列表字段(event.触发条件),
+                '阻断条件：' + 拼接列表字段(event.阻断条件),
+                '事件结果：' + boundedText(拼接列表字段(event.事件结果), 180),
+                '对下一组影响：' + boundedText(拼接列表字段(event.对下一组影响), 120),
+                ...构建信息可见性行(event.信息可见性)
+            ].join('\n');
+            add('关键事件', body, 5);
+        });
+        for (const [label, values] of [
+            ['本组结束状态', segment.本组结束状态],
+            ['开局已成立事实', target === 'planning' ? segment.开局已成立事实 : []],
+            ['前组延续事实', segment.前组延续事实]
+        ] as const) {
+            取有效文本列表(values).forEach((item, index) => add(label, '[' + (index + 1) + '] ' + item, 4));
+        }
+        if (target === 'planning') (segment.角色推进 || []).forEach((item, index) => add('角色推进', [
+            '[' + (index + 1) + '] ' + item.角色名,
+            '本组前状态：' + 拼接列表字段(item.本组前状态),
+            '本组变化：' + 拼接列表字段(item.本组变化),
+            '本组后状态：' + 拼接列表字段(item.本组后状态),
+            '对下一组影响：' + 拼接列表字段(item.对下一组影响)
+        ].join('\n'), 3));
+        const summary = boundedText(segment.本组概括, position === 'current' ? 400 : 200);
+        if (summary) add('本组概括', summary, 1);
+    }
+    // Reserve both identities and next-group evidence instead of exhausting the budget on the current group.
+    const identity = headers.join('\n\n');
+    const available = Math.max(0, limit - countChars(identity) - countChars(notice) - 4);
+    const shares = window.next ? {current: .72, next: .28} : {current: 1, next: 0};
+    const selected: string[] = [];
+    let unspent = available;
+    const first = rows.filter(row => row.position === 'current').sort((a, b) => b.priority - a.priority)
+        .find(row => countChars(row.text) + 2 <= available);
+    if (first) { selected.push(first.text); unspent -= countChars(first.text) + 2; }
+    for (const position of ['current', 'next'] as const) {
+        let remaining = Math.min(unspent, Math.max(0, Math.floor(available * shares[position])
+            - (position === 'current' && first ? countChars(first.text) + 2 : 0)));
+        for (const row of rows.filter(row => row.position === position).sort((a, b) => b.priority - a.priority)) {
+            if (row === first) continue;
+            const size = countChars(row.text) + 2;
+            if (size > remaining) continue;
+            selected.push(row.text); remaining -= size; unspent -= size;
+        }
+    }
+    return budgetTextRecords([identity, ...selected, notice].join('\n\n'), limit);
+};
+
 const 按上限裁切文本 = (text: string, maxChars: number): string => (
     maxChars > 0 && text.length > maxChars
         ? budgetTextRecords(text, maxChars)
@@ -960,15 +1053,17 @@ export const 获取激活小说拆分注入文本 = async (
     if (!activeDataset) return '';
 
     const maxChars = 获取链路上限(settings, target);
-    const finish = (source: string): string => {
+    const finish = (source: string, fullSource = source): string => {
         const replaced = 应用同人角色替换(source, openingConfig, playerName);
         const final = 按上限裁切文本(replaced, maxChars);
-        onMetric?.({ name: 'novel', sourceChars: countChars(replaced), sentChars: countChars(final) });
+        onMetric?.({ name: 'novel', sourceChars: countChars(应用同人角色替换(fullSource, openingConfig, playerName)), sentChars: countChars(final) });
         return final;
     };
     const runtimeText = 构建实时章节注入文本(activeDataset, target, story);
     if (runtimeText.trim()) {
-        return finish(runtimeText);
+        return finish(maxChars > 0 && countChars(runtimeText) > maxChars
+            ? 构建受限辅助滑窗(activeDataset, target, story, maxChars) || runtimeText
+            : runtimeText, runtimeText);
     }
 
     const snapshots = await 读取小说拆分注入快照列表();

@@ -155,6 +155,8 @@ try {
   {name:'world',sourceChars:100,sentChars:20,prompt:'PRIVATE STORED PROMPT',apiKey:secret},
   {name:secret,sourceChars:99,sentChars:99}],
   details:[{name:'novel',sourceChars:1000,sentChars:400,payload:secret}]};
+ stored.records.at(-1).result={status:'applied',reason:secret,parsedCommands:3,acceptedCommands:2,appliedCommands:2,
+  prompt:'PRIVATE STORED PROMPT',apiKey:secret};
  values.set('mrjh-api-diagnostics:v1',JSON.stringify(stored));
  const reloaded=await import(url+'?reload');
  log=reloaded.exportApiDiagnostics();
@@ -162,6 +164,9 @@ try {
  assert.equal(log.calls.at(-1).inputBreakdown.sections.length,1);
  assert.equal(log.calls.at(-1).inputBreakdown.details[0].name,'novel');
  assert.equal(log.calls.at(-1).inputBreakdown.details[0].sourceChars,1000);
+ assert.equal(log.calls.at(-1).result.status,'applied');
+ assert.equal(log.calls.at(-1).result.appliedCommands,2);
+ assert.equal(log.calls.at(-1).result.reason,undefined);
  Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{getItem:()=>{throw Error('blocked');},setItem:()=>{throw Error('blocked');}}});
  const unavailable=await import(url+'?storage-blocked');
  const metric=unavailable.beginApiDiagnostic({model:'fixture',endpoint:'https://example',proxied:false,inputChars:1,messageCount:1,requestedStream:false});metric.finish();

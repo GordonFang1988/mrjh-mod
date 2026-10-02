@@ -28,10 +28,10 @@ export const budgetTextRecords = (text: string, limit: number): string => {
     const notice = '〔资料未完整展示；缺失条件不得视为已满足〕';
     if (limit < countChars(notice)) return '';
     const units: Array<{text: string; order: number; priority: number}> = [];
-    let chapter = '', metadata: string[] = [], label = '', current: string[] = [];
+    let chapter = '', metadata: string[] = [], label = '', current: string[] = [], tree: string[] = [];
     const flush = () => {
         if (!current.some(line => line.trim())) return;
-        const body = [chapter, ...metadata, label, ...current].filter(Boolean).join('\n');
+        const body = [chapter, ...metadata, ...tree, label, ...current].filter(Boolean).join('\n');
         units.push({text: body, order: units.length, priority:
             /原著硬约束|前置条件|触发条件|阻断条件|读者视角|最早|最晚|最迟/.test(body) ? 3 : /分解组号|章节范围|时间线范围/.test(body) ? 2 : 1});
         current = [];
@@ -40,15 +40,29 @@ export const budgetTextRecords = (text: string, limit: number): string => {
     // It is either sent whole or omitted whole; a condition never floats under another event.
     for (const line of text.split(/\r?\n/)) {
         if (/^【[^】]+】$/.test(line.trim())) {
-            flush(); chapter = line; metadata = []; label = ''; continue;
+            flush();
+            if (/^【(?:前一|当前|下一)章节内容】$/.test(line.trim())) {
+                chapter = line; metadata = []; tree = []; label = '';
+            } else if (chapter) { label = line; }
+            else { chapter = line; }
+            continue;
         }
         if (/^(?:分解组号|章节范围|章节标题|是否开局组|时间线范围)：/.test(line)) {
-            flush(); metadata.push(line); continue;
+            flush(); metadata.push(/^章节标题：/.test(line) ? boundedText(line, 250) : line); continue;
+        }
+        const treeNode = line.match(/^((?:│  )*)(?:• |├─ )(.*)$/);
+        if (treeNode) {
+            flush(); label = '';
+            const depth = line.includes('├─ ') ? (treeNode[1]?.length || 0) / 3 + 1 : 0;
+            tree = tree.slice(0, depth); tree[depth] = line;
+            continue;
         }
         if (/^[^\s：]{1,30}：$/.test(line)) {
             flush(); label = line; continue;
         }
-        if (/^\[\d+\]/.test(line)) flush();
+        if (/^\[[^\]]+\](?:[：:]|\s|$)/.test(line) || /^\[\d+\]/.test(line)) flush();
+        else if (/^(?:开局已成立事实|前组延续事实|本组结束状态|给下一组参考)：$/.test(label)
+            && current.length && !/^(?:前置条件|触发条件|阻断条件|谁知道|谁不知道|是否仅读者视角可见)：/.test(line)) flush();
         current.push(line);
     }
     flush();

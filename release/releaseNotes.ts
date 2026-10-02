@@ -4,6 +4,16 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-02', date: '2026年10月2日', updates: [{
+        id: '2026-10-02-v1.1.2', time: '23:55', version: 'v1.1.2',
+        title: '修复小说资料省略与规划结果判断',
+        summary: '保留预算内有效的小说约束和事件条件，明确区分规划无需更新与接口没有返回最终结果。',
+        items: [
+            '小说资料按当前和下一分解组选择完整证据，保留事件条件及信息可见性；兼容树状旧快照，避免超大资料只剩省略提示。',
+            '规划使用专用输出协议，移除主剧情提示冲突；仅返回思考、空结果或无效结果时明确提示异常，保留已有规划。',
+            '修复流式同一帧同时返回思考和正式回答时漏读回答的问题；规划只从最终回答读取命令。',
+            '诊断新增规划结果状态与解析、接受、应用命令数量，方便确认是否实际更新。保留现有输入预算与存档结构。'
+        ]
+    }, {
         id: '2026-10-02-v1.1.1', time: '23:19', version: 'v1.1.1',
         title: '优化回忆、世界演化与规划分析的输入',
         summary: '减少辅助任务重复读取的历史与无关资料，并补充分块诊断，方便对比实际回合的速度和效果。',

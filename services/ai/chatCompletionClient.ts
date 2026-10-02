@@ -310,43 +310,27 @@ const 创建OpenAI流增量提取器 = (): 增量提取器 => {
     const extract = ((payload: any): string => {
         const delta = payload?.choices?.[0]?.delta;
         const reasoningContent = delta?.reasoning_content ?? delta?.reasoning ?? delta?.reasoning_text ?? null;
-        const hasReasoningContent = reasoningContent !== null && reasoningContent !== undefined;
-        const hasActualContent = typeof delta?.content === 'string' && delta.content.length > 0;
-
-        if (hasReasoningContent) {
-            const reasoningText = typeof reasoningContent === 'string' ? reasoningContent : '';
-            if (!inReasoningPhase && reasoningText) {
+        const reasoningText = typeof reasoningContent === 'string' ? reasoningContent : '';
+        const content = typeof delta?.content === 'string' && delta.content.length
+            ? delta.content : 提取OpenAI完整文本(payload);
+        let result = '';
+        if (reasoningText) {
+            if (!inReasoningPhase) {
                 inReasoningPhase = true;
                 needsClosingTag = true;
-                return `<think>${reasoningText}`;
+                result += '<think>';
             }
-            if (inReasoningPhase && reasoningText) {
-                return reasoningText;
-            }
-            return '';
+            result += reasoningText;
         }
-
-        if (inReasoningPhase && hasActualContent) {
-            inReasoningPhase = false;
-            needsClosingTag = false;
-            return `</think>${delta.content}`;
-        }
-
-        if (hasActualContent) {
-            return delta.content;
-        }
-
-        const messageContent = payload?.choices?.[0]?.message?.content;
-        if (typeof messageContent === 'string' && messageContent.length > 0) {
+        if (content) {
             if (inReasoningPhase) {
                 inReasoningPhase = false;
                 needsClosingTag = false;
-                return `</think>${messageContent}`;
+                result += '</think>';
             }
-            return messageContent;
+            result += content;
         }
-
-        return '';
+        return result;
     }) as 增量提取器;
 
     extract.finalize = () => {
@@ -720,6 +704,8 @@ export const 请求模型文本 = async (
         diagnosticTask?: ApiDiagnosticTask;
         inputBreakdown?: import('../../utils/auxiliaryContext').AuxiliaryInputMetric;
         rejectTruncated?: boolean;
+        onDiagnosticCall?: (id: string) => void;
+        onResponseChannels?: (counts: {contentChars: number; reasoningChars: number}) => void;
     }
 ): Promise<string> => {
     const protocol: 请求协议类型 = 是否DeepSeek接口配置(apiConfig) ? 'deepseek' : 'openai';
@@ -749,6 +735,7 @@ export const 请求模型文本 = async (
         maxOutputTokens:计算最大输出Token(apiConfig),requestedStream:options.streamOptions?.stream === true,
         inputBreakdown:options.inputBreakdown
     });
+    options.onDiagnosticCall?.(telemetry.id);
     try {
         const text = await 带重试执行(`请求模型文本(${protocol})`, async () => {
             return 请求OpenAI家族文本(
@@ -773,6 +760,7 @@ export const 请求模型文本 = async (
             throw new Error('辅助任务输出被截断，本次结果不写入存档');
         }
         telemetry.finish();
+        options.onResponseChannels?.(telemetry.outputChannels());
         return text;
     } catch (error) {
         telemetry.finish(error);
