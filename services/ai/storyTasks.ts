@@ -30,8 +30,10 @@ import { 获取变量校准COT提示词 } from '../../prompts/runtime/variableCo
 import { 构建AI角色声明提示词 } from '../../prompts/runtime/roleIdentity';
 import {
     构建统一规划分析专用上下文,
-    统一规划分析COT提示词
+    精简统一规划分析COT提示词
 } from '../../prompts/runtime/planUpdateReference';
+import { budgetAuxiliaryMessages, auxiliaryOutputConfig, projectAuxiliaryState, boundedText, budgetTextRecords,
+    countChars, filterTaskViewCommands, TASK_VIEW_RULES, AUXILIARY_INPUT_LIMITS, type InputSectionMetric, type Projection } from '../../utils/auxiliaryContext';
 import { 世界书本体槽位 } from '../../utils/worldbook';
 import { 获取内置提示词槽位内容 } from '../../utils/builtinPrompts';
 import {
@@ -53,6 +55,20 @@ export interface ConnectionTestResult {
     ok: boolean;
     detail: string;
 }
+
+const 校验辅助输出完整性 = (rawText: string): void => {
+    for (const tag of ['thinking', '说明', '命令']) {
+        if (new RegExp('<\\s*' + tag + '\\s*>', 'i').test(rawText)
+            && !new RegExp('<\\s*/\\s*' + tag + '\\s*>', 'i').test(rawText)) {
+            throw new Error('辅助任务输出结构不完整，本次结果不写入存档');
+        }
+    }
+    const body = rawText.replace(/<(think|thinking)>[\s\S]*?<\/\1>/gi, '')
+        .replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    if (body.startsWith('{') || body.startsWith('[')) {
+        try { JSON.parse(body); } catch { throw new Error('辅助任务输出结构不完整，本次结果不写入存档'); }
+    }
+};
 
 export interface StoryResponseResult {
     response: GameResponse;
@@ -185,7 +201,8 @@ export const generateMemoryRecall = async (
     signal?: AbortSignal,
     streamOptions?: RecallStreamOptions,
     extraPrompt?: string,
-    cotPseudoHistoryPrompt?: string
+    cotPseudoHistoryPrompt?: string,
+    contextMetrics?: InputSectionMetric[]
 ): Promise<string> => {
     const normalizedExtraPrompt = (extraPrompt || '').trim();
     const normalizedCotPseudoPrompt = (cotPseudoHistoryPrompt || '').trim();
@@ -199,9 +216,15 @@ export const generateMemoryRecall = async (
     if (normalizedCotPseudoPrompt) {
         messagesRaw.push({ role: 'assistant', content: normalizedCotPseudoPrompt });
     }
-    const messages = 规范化文本补全消息链(messagesRaw, { 保留System: true, 合并同角色: false });
-    return 请求模型文本(apiConfig, messages, {
+    const packed = budgetAuxiliaryMessages('recall', messagesRaw.map((message, index) => ({
+        name: index === 0 ? 'rules' as const : message.content === userPrompt ? 'recall' as const : 'extra' as const,
+        message, required: index === 0, limit: message.content === userPrompt ? 12000 : 1000
+    })), contextMetrics);
+    const messages = 规范化文本补全消息链(packed.messages, { 保留System: true, 合并同角色: false });
+    return 请求模型文本(auxiliaryOutputConfig(apiConfig, 'recall'), messages, {
         diagnosticTask: 'recall',
+        inputBreakdown: packed.inputBreakdown,
+        rejectTruncated: true,
         temperature: 0.2,
         signal,
         streamOptions
@@ -607,13 +630,14 @@ export const generateWorldEvolutionUpdate = async (
     cotPseudoHistoryPrompt?: string,
     cotPrompt?: string,
     fandomEnabled?: boolean,
-    gptMode?: boolean
+    gptMode?: boolean,
+    contextInfo?: { views: Projection[]; metrics: InputSectionMetric[] }
 ): Promise<WorldEvolutionResult> => {
     if (!apiConfig.apiKey) throw new Error('Missing API Key');
 
     const systemPrompt = 构建世界演变系统提示词({ fandom: fandomEnabled === true });
     const userPrompt = 构建世界演变用户提示词(worldContext, { fandom: fandomEnabled === true });
-    const normalizedExtraPrompt = (extraPrompt || '').trim();
+    const normalizedExtraPrompt = budgetTextRecords((extraPrompt || '').trim(), 5000);
     const normalizedCotPseudoPrompt = (cotPseudoHistoryPrompt || '').trim();
     const normalizedCotPrompt = (cotPrompt || '').trim();
     const fandomSystemPrompt = fandomEnabled ? 同人世界演变附加系统提示词 : '';
@@ -646,19 +670,30 @@ export const generateWorldEvolutionUpdate = async (
     if (normalizedCotPseudoPrompt) {
         messagesRaw.push({ role: 'assistant', content: normalizedCotPseudoPrompt });
     }
-    const messages = 规范化文本补全消息链(messagesRaw, { 保留System: true, 合并同角色: false });
+    const packed = budgetAuxiliaryMessages('world-evolution', messagesRaw.map(message => ({
+        name: message.content === userPrompt ? 'world' as const : message.content.startsWith('【额外要求提示词】') ? 'extra' as const
+            : message.content === normalizedCotPrompt ? 'analysis' as const : 'rules' as const,
+        message, required: message.role !== 'assistant' && !message.content.startsWith('【额外要求提示词】'),
+        limit: message.role === 'assistant' ? 200 : 5000, records: message.content.startsWith('【额外要求提示词】')
+    })), [...(contextInfo?.metrics || []), {name: 'extra', sourceChars: countChars(extraPrompt || ''), sentChars: countChars(normalizedExtraPrompt)}]);
+    const messages = 规范化文本补全消息链(packed.messages, { 保留System: true, 合并同角色: false });
 
-    const rawText = await 请求模型文本(apiConfig, messages, {
+    const rawText = await 请求模型文本(auxiliaryOutputConfig(apiConfig, 'world-evolution'), messages, {
         temperature: 0.4,
         diagnosticTask: 'world-evolution',
+        inputBreakdown: packed.inputBreakdown,
+        rejectTruncated: true,
         streamOptions: { stream: true },
         signal,
         errorDetailLimit: Number.POSITIVE_INFINITY
     });
+    校验辅助输出完整性(rawText);
     const parsed = 解析世界演变响应(rawText);
+    const commands = filterTaskViewCommands(parsed.commands, contextInfo?.views || []);
     return {
-        commands: parsed.commands,
-        updates: parsed.updates,
+        commands,
+        updates: parsed.commands.length > 0 && commands.length === 0
+            ? ['证据或索引不完整，本次保留原世界状态'] : parsed.updates,
         rawText
     };
 };
@@ -1407,69 +1442,92 @@ const 解析规划补丁结果 = (
 
 export const generatePlanningAnalysis = async (
     params: {
-        playerName: string;
-        currentStoryJson: string;
-        currentHeroinePlanJson: string;
-        worldJson: string;
-        socialJson: string;
-        envJson: string;
-        recentBodiesText: string;
-        currentPlanText?: string;
-        auditFocusText: string;
-        heroineEnabled?: boolean;
-        ntlEnabled?: boolean;
-        fandomEnabled?: boolean;
-        extraPrompt?: string;
-        gptMode?: boolean;
+        playerName: string; currentStoryJson: string; currentHeroinePlanJson: string;
+        worldJson: string; socialJson: string; envJson: string; recentBodiesText: string;
+        currentPlanText?: string; auditFocusText: string; heroineEnabled?: boolean; ntlEnabled?: boolean;
+        fandomEnabled?: boolean; extraPrompt?: string; gptMode?: boolean;
+        contextMetrics?: InputSectionMetric[];
     },
     apiConfig: 当前可用接口结构,
     signal?: AbortSignal
 ): Promise<PlanningAnalysisResult> => {
     if (!apiConfig.apiKey) throw new Error('Missing API Key');
-    const aiRolePrompt = 构建AI角色声明提示词(params.playerName);
+    const aiRolePrompt = 构建AI角色声明提示词(boundedText(params.playerName, 80));
     const cotPseudoPrompt = 替换COT伪装身份占位(默认COT伪装历史消息提示词.trim(), aiRolePrompt);
-    const normalizedExtraPrompt = typeof params.extraPrompt === 'string' ? params.extraPrompt.trim() : '';
     const fandomSystemPrompt = params.fandomEnabled ? 同人规划分析附加系统提示词 : '';
     const fandomCotPrompt = params.fandomEnabled ? 同人规划分析附加COT提示词 : '';
-    const rawText = await 请求模型文本(apiConfig, 规范化文本补全消息链([
-        { role: 'system', content: `【AI角色】\n${aiRolePrompt}` },
-        {
-            role: 'system',
-            content: `【系统提示词】\n${构建统一规划分析系统提示词({
-                heroineEnabled: params.heroineEnabled === true,
-                ntl: params.ntlEnabled === true,
-                fandom: params.fandomEnabled === true
-            })}`
-        },
-        ...(fandomSystemPrompt ? [{ role: 'system' as const, content: `【同人规划补充】\n${fandomSystemPrompt}` }] : []),
-        { role: 'system', content: `【结构参考与更新规则】\n${构建统一规划分析专用上下文()}` },
-        ...(normalizedExtraPrompt ? [{ role: 'system' as const, content: `【附加世界书】\n${normalizedExtraPrompt}` }] : []),
-        { role: 'system', content: `【统一COT】\n${统一规划分析COT提示词}` },
-        ...(fandomCotPrompt ? [{ role: 'system' as const, content: `【同人规划COT】\n${fandomCotPrompt}` }] : []),
-        {
-            role: params.gptMode ? 'user' as const : 'assistant' as const,
-            content: `【本次任务】\n${构建统一规划分析用户提示词({
-                currentStoryJson: params.currentStoryJson,
-                currentHeroinePlanJson: params.currentHeroinePlanJson,
-                worldJson: params.worldJson,
-                socialJson: params.socialJson,
-                envJson: params.envJson,
-                recentBodiesText: params.recentBodiesText,
-                currentPlanText: params.currentPlanText,
-                auditFocusText: params.auditFocusText,
-                heroineEnabled: params.heroineEnabled === true
-            })}`
-        },
-        ...(!params.gptMode ? [{ role: 'user' as const, content: '开始任务' }] : []),
-        { role: 'assistant', content: cotPseudoPrompt }
-    ], { 保留System: true, 合并同角色: false }), {
-        temperature: 0.3,
-        signal,
-        errorDetailLimit: Number.POSITIVE_INFINITY,
-        diagnosticTask: 'planning',
-        streamOptions: { stream: true }
+    const fixed: Array<{name: InputSectionMetric['name']; message: 通用消息; required: boolean}> = [
+        {name: 'identity', message: {role: 'system', content: '【AI角色】\n' + aiRolePrompt}, required: true},
+        {name: 'rules', message: {role: 'system', content: '【系统提示词】\n' + 构建统一规划分析系统提示词({
+            heroineEnabled: params.heroineEnabled === true, ntl: params.ntlEnabled === true, fandom: params.fandomEnabled === true
+        })}, required: true},
+        ...(fandomSystemPrompt ? [{name: 'rules' as const, message: {role: 'system' as const, content: fandomSystemPrompt}, required: true}] : []),
+        {name: 'schema', message: {role: 'system', content: 构建统一规划分析专用上下文()}, required: true},
+        {name: 'analysis', message: {role: 'system', content: 精简统一规划分析COT提示词 + '\n' + TASK_VIEW_RULES}, required: true},
+        ...(fandomCotPrompt ? [{name: 'analysis' as const, message: {role: 'system' as const, content: fandomCotPrompt}, required: true}] : [])
+    ];
+    const pool = AUXILIARY_INPUT_LIMITS.planning - fixed.reduce((sum, item) => sum + countChars(item.message.content), 0) - 5000 - 3000 - 512;
+    if (pool < 6000) throw new Error('规划固定规则超过预算，无法保留必要状态');
+    const parse = (source: string): unknown => {
+        try { return JSON.parse(source); } catch { throw new Error('规划状态 JSON 无效，本次不生成写回命令'); }
+    };
+    const env = parse(params.envJson) as any;
+    const time = typeof env?.时间 === 'string' ? env.时间
+        : env?.年 ? [env.年, env.月, env.日, env.时, env.分].join(':') : undefined;
+    const query = [boundedText(params.envJson, 1000), boundedText(params.auditFocusText, 2000),
+        boundedText(params.currentPlanText, 2000), boundedText(params.recentBodiesText, 6000)].join('\n');
+    const project = (source: string, name: InputSectionMetric['name'], root: string, share: number, social = false) => {
+        const view = projectAuxiliaryState(parse(source), {name, root, maxChars: Math.floor(pool * share), query, currentTime: time, social});
+        view.metric.sourceChars = countChars(source);
+        return view;
+    };
+    const story = project(params.currentStoryJson, 'story', '', .24);
+    const heroine = project(params.currentHeroinePlanJson, 'heroine', '', .12);
+    const world = project(params.worldJson, 'world', '世界', params.heroineEnabled ? .18 : .24);
+    const social = project(params.socialJson, 'social', '社交', params.heroineEnabled ? .12 : .18, true);
+    const environment = project(params.envJson, 'environment', '环境', .04);
+    const metrics = [story, heroine, world, social, environment].map(view => view.metric);
+    const text = (name: InputSectionMetric['name'], source: string | undefined, share: number) => {
+        const value = boundedText(source, Math.floor(pool * share));
+        metrics.push({name, sourceChars: countChars(source || ''), sentChars: countChars(value)});
+        return value;
+    };
+    const taskPrompt = '【本次任务】\n' + 构建统一规划分析用户提示词({
+        currentStoryJson: story.text,
+        currentHeroinePlanJson: heroine.text,
+        worldJson: world.text,
+        socialJson: social.text,
+        envJson: environment.text,
+        recentBodiesText: text('body', params.recentBodiesText, .22),
+        currentPlanText: text('plan', params.currentPlanText, .05),
+        auditFocusText: text('hints', params.auditFocusText, .03),
+        heroineEnabled: params.heroineEnabled === true
     });
-    return { ...解析规划补丁结果(rawText, '统一规划分析'), rawText };
+    const boundedExtra = budgetTextRecords(params.extraPrompt || '', 5000);
+    const packed = budgetAuxiliaryMessages<通用消息>('planning', [
+        ...fixed,
+        {name: 'extra', message: {role: 'system', content: '【附加资料】\n' + boundedExtra}, limit: 5000, records: true},
+        {name: 'story', message: {role: params.gptMode ? 'user' : 'assistant', content: taskPrompt}, required: true},
+        ...(!params.gptMode ? [{name: 'trigger' as const, message: {role: 'user' as const, content: '开始任务'}, required: true}] : []),
+        {name: 'analysis', message: {role: 'assistant', content: cotPseudoPrompt}, limit: 200}
+    ], [...metrics, ...(params.contextMetrics || []), {name: 'extra', sourceChars: countChars(params.extraPrompt || ''), sentChars: countChars(boundedExtra)}]);
+    const rawText = await 请求模型文本(auxiliaryOutputConfig(apiConfig, 'planning'),
+        规范化文本补全消息链(packed.messages, {保留System: true, 合并同角色: false}), {
+            temperature: 0.3, signal, errorDetailLimit: Number.POSITIVE_INFINITY, diagnosticTask: 'planning',
+            streamOptions: {stream: true}, inputBreakdown: packed.inputBreakdown, rejectTruncated: true
+        });
+    校验辅助输出完整性(rawText);
+    const parsed = 解析规划补丁结果(rawText, '统一规划分析');
+    let commands = filterTaskViewCommands(parsed.commands, [story, heroine]);
+    // Partial gate evidence must not advance a chapter or mark it completed.
+    const incompleteGate = [story, heroine].some(view => view.incomplete.some(path =>
+        /^剧情\.当前章节|^(?:同人)?(?:剧情规划|女主剧情规划)\./.test(path)))
+        || world.arrays.some(scope => /世界\.(?:待执行事件|进行中事件|活跃NPC列表|世界镜头规划)$/.test(scope.path) && scope.visible.length < scope.total)
+        || /资料未完整展示/.test(boundedExtra);
+    if (incompleteGate) commands = commands.filter(cmd => !/剧情\.当前章节(?:$|\.(?:标题|当前分解组|原著章节标题|原著推进状态)$)/.test(cmd.key));
+    commands = commands.filter(cmd => !/^(?:gameState\.)?(?:剧情|剧情规划|同人剧情规划|女主剧情规划|同人女主剧情规划)$/.test(cmd.key));
+    return {...parsed, shouldUpdate: parsed.shouldUpdate && commands.length > 0, commands, rawText,
+        reason: parsed.shouldUpdate && commands.length === 0 ? '规划证据或索引不完整，已保留原状态' : parsed.reason};
 };
 
 export const generateNovelDecomposition = async (

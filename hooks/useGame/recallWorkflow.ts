@@ -7,6 +7,7 @@ import {
     构建剧情回忆检索用户提示词
 } from '../../prompts/runtime/recall';
 import { 规范化记忆系统 } from './memoryUtils';
+import { boundedText, type InputSectionMetric } from '../../utils/auxiliaryContext';
 import {
     构建剧情回忆检索上下文,
     基于候选生成回忆回退结果,
@@ -39,13 +40,19 @@ export const 执行剧情回忆检索 = async (
     const recallConfig = apiConfig.功能模型占位 || ({} as any);
     const fullN = Math.max(1, Number(recallConfig.剧情回忆完整原文条数N) || 20);
     const localCandidates = 预筛剧情回忆候选(playerInput, mem, fullN);
+    if (localCandidates.length === 0) return null;
+    let corpusMetric: InputSectionMetric | undefined;
+    let sentCandidateIds: string[] = [];
     const memoryCorpus = 构建剧情回忆检索上下文(mem, fullN, {
-        candidateIds: localCandidates.map(item => item.id)
+        candidateIds: localCandidates.map(item => item.id),
+        query: playerInput,
+        onMetric: metric => { corpusMetric = metric; },
+        onSelected: ids => { sentCandidateIds = ids; }
     });
-    const localFallback = 基于候选生成回忆回退结果(localCandidates);
+    const localFallback = 基于候选生成回忆回退结果(localCandidates.filter(item => sentCandidateIds.includes(item.id)));
 
     const systemPrompt = `${剧情回忆检索COT提示词}\n\n${剧情回忆检索输出格式提示词}`;
-    const userPrompt = 构建剧情回忆检索用户提示词(playerInput, memoryCorpus);
+    const userPrompt = 构建剧情回忆检索用户提示词(boundedText(playerInput, 1800), memoryCorpus);
     let parsed = localFallback;
     try {
         const raw = await textAIService.generateMemoryRecall(
@@ -60,17 +67,26 @@ export const 执行剧情回忆检索 = async (
                 }
                 : undefined,
             options?.extraPrompt,
-            options?.cotPseudoHistoryPrompt
+            options?.cotPseudoHistoryPrompt,
+            corpusMetric ? [corpusMetric] : []
         );
         const modelParsed = 解析剧情回忆输出(raw);
-        parsed = (modelParsed.strongIds.length > 0 || modelParsed.weakIds.length > 0)
-            ? modelParsed
-            : localFallback;
+        const allowed = new Set(sentCandidateIds);
+        if (/强回忆\s*[:：]/.test(raw) && /弱回忆\s*[:：]/.test(raw)) {
+            parsed = { ...modelParsed, strongIds: modelParsed.strongIds.filter(id => allowed.has(id)).slice(0, 5),
+                weakIds: modelParsed.weakIds.filter(id => allowed.has(id)).slice(0, 6) };
+        }
     } catch {
         parsed = localFallback;
     }
     const normalizedMem = 规范化记忆系统(mem);
-    const tagContent = 根据检索结果构建剧情回忆标签(normalizedMem, parsed);
+    parsed.strongIds = parsed.strongIds.slice(0, 5);
+    parsed.weakIds = parsed.weakIds.filter(id => !parsed.strongIds.includes(id)).slice(0, 6);
+    parsed.normalizedText = [
+        parsed.strongIds.length ? '强回忆:' + parsed.strongIds.join('|') : '强回忆:无',
+        parsed.weakIds.length ? '弱回忆:' + parsed.weakIds.join('|') : '弱回忆:无'
+    ].join('\n');
+    const tagContent = 根据检索结果构建剧情回忆标签(normalizedMem, parsed, { query: playerInput });
 
     return {
         tagContent,

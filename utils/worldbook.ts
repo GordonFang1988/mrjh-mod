@@ -12,6 +12,7 @@ import type {
     聊天记录结构
 } from '../types';
 import { normalizeCanonicalGameTime, 环境时间转标准串 } from '../hooks/useGame/timeUtils';
+import { countChars, boundedText, type InputSectionMetric } from './auxiliaryContext';
 import { 构建AI角色声明提示词 } from '../prompts/runtime/roleIdentity';
 import { 构建真实世界模式提示词 } from '../prompts/runtime/realWorldMode';
 import { 构建变量校准提示词 } from '../prompts/runtime/variableCalibration';
@@ -1131,6 +1132,7 @@ type 世界书命中参数 = {
     world?: any;
     extraTexts?: string[];
     maxChars?: number;
+    onMetric?: (metric: InputSectionMetric) => void;
 };
 
 const 时间串转序数 = (value?: string): number | null => {
@@ -1159,7 +1161,8 @@ export const 选择生效世界书条目 = ({
     history,
     world,
     extraTexts,
-    maxChars
+    maxChars,
+    onMetric
 }: 世界书命中参数): 世界书条目结构[] => {
     const activeScopes = Array.isArray(scopes) && scopes.length > 0 ? scopes : 默认作用域;
     const currentTimeText = 环境时间转标准串(environment) || 读取文本(environment?.时间).trim();
@@ -1176,6 +1179,7 @@ export const 选择生效世界书条目 = ({
 
     const selected: 世界书条目结构[] = [];
     let totalChars = 0;
+    let sourceChars = 0, sourceItems = 0;
 
     扁平化世界书条目(books).forEach((entry) => {
         if (!作用域命中(entry.作用域 || 默认作用域, activeScopes)) return;
@@ -1186,12 +1190,16 @@ export const 选择生效世界书条目 = ({
             if (keywords.length <= 0) return;
             if (!keywords.some((keyword) => corpus.includes(keyword))) return;
         }
-        const estimated = `${entry.标题}\n${entry.内容}`.length;
-        if (budget > 0 && selected.length > 0 && totalChars + estimated > budget) return;
+        // Include grouping/heading overhead and separators; the first entry obeys the same budget.
+        const estimated = Array.from(`${entry.标题}\n${entry.内容}`).length + 40;
+        sourceChars += estimated - 40; sourceItems += 1;
+        if (budget > 0 && totalChars + estimated + 80 > budget) return;
         selected.push(entry);
         totalChars += estimated;
     });
 
+    onMetric?.({name: 'worldbook', sourceChars, sentChars: totalChars, sourceItems,
+        sentItems: selected.length, omittedItems: sourceItems - selected.length});
     return selected;
 };
 
@@ -1221,7 +1229,8 @@ export const 构建世界书注入文本 = (params: 世界书命中参数): {
     outputRuleText: string;
     combinedText: string;
 } => {
-    const selectedEntries = 选择生效世界书条目(params);
+    let metric: InputSectionMetric | undefined;
+    const selectedEntries = 选择生效世界书条目({...params, onMetric: value => { metric = value; }});
     const grouped = {
         world_lore: selectedEntries.filter((entry) => entry.类型 === 'world_lore'),
         system_rule: selectedEntries.filter((entry) => entry.类型 === 'system_rule'),
@@ -1232,7 +1241,17 @@ export const 构建世界书注入文本 = (params: 世界书命中参数): {
     const systemRuleText = 构建分组文本(类型标题映射.system_rule, grouped.system_rule);
     const commandRuleText = 构建分组文本(类型标题映射.command_rule, grouped.command_rule);
     const outputRuleText = 构建分组文本(类型标题映射.output_rule, grouped.output_rule);
-    const combinedText = [worldLoreText, systemRuleText, commandRuleText, outputRuleText].filter(Boolean).join('\n\n');
+    let combinedText = [worldLoreText, systemRuleText, commandRuleText, outputRuleText].filter(Boolean).join('\n\n');
+    if (metric && (metric.omittedItems || 0) > 0) {
+        const budget = typeof params.maxChars === 'number' && Number.isFinite(params.maxChars)
+            ? Math.max(0, Math.floor(params.maxChars))
+            : Math.max(...params.scopes.map(scope => 世界书预算映射[scope] || 0));
+        const notice = '〔世界书资料未完整展示；缺失约束不得视为已满足，保持未知项原值〕';
+        const available = budget > 0 ? Math.max(0, budget - countChars(combinedText) - 2) : countChars(notice);
+        const boundedNotice = boundedText(notice, available);
+        if (boundedNotice) combinedText = [combinedText, boundedNotice].filter(Boolean).join('\n\n');
+    }
+    if (metric) params.onMetric?.({...metric, sentChars: countChars(combinedText)});
 
     return {
         selectedEntries,

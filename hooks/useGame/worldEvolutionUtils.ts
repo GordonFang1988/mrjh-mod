@@ -1,6 +1,7 @@
 import { normalizeStateCommandKey } from '../../utils/stateHelpers';
 import { normalizeCanonicalGameTime, 环境时间转标准串, 结构化时间转标准串 } from './timeUtils';
 import { 格式化短期记忆展示文本 } from './memoryUtils';
+import { boundedText, projectAuxiliaryState, TASK_VIEW_RULES, countChars, type Projection, type InputSectionMetric } from '../../utils/auxiliaryContext';
 
 type 世界演变命令 = {
     action: 'add' | 'set' | 'push' | 'delete';
@@ -114,35 +115,6 @@ export const 分析世界到期触发 = (worldLike: any, envLike: any) => {
     };
 };
 
-const 格式化世界演变展示上下文 = <T,>(value: T): T => {
-    if (Array.isArray(value)) {
-        return value.map((item, index) => {
-            const formatted = 格式化世界演变展示上下文(item);
-            if (formatted && typeof formatted === 'object' && !Array.isArray(formatted)) {
-                return {
-                    [`[${index}]`]: index,
-                    ...(formatted as Record<string, unknown>)
-                };
-            }
-            return formatted;
-        }) as T;
-    }
-    if (!value || typeof value !== 'object') return value;
-    return Object.fromEntries(
-        Object.entries(value as Record<string, unknown>)
-            .filter(([key]) => key !== '索引')
-            .map(([key, child]) => [key, 格式化世界演变展示上下文(child)])
-    ) as T;
-};
-
-const 序列化世界演变展示上下文 = (value: unknown): string => JSON.stringify(
-    格式化世界演变展示上下文(value),
-    null,
-    2
-).replace(
-    /^(\s*)"(\[\d+\])":\s*\d+,?$/gm,
-    '$1"$2"'
-);
 
 const 提炼世界演变剧情锚点 = (storyLike: unknown) => {
     const story = storyLike && typeof storyLike === 'object' && !Array.isArray(storyLike)
@@ -176,6 +148,7 @@ export const 构建世界演变上下文文本 = (params: {
     currentGameTime?: string;
     dynamicHints?: string[];
     dueHints?: string[];
+    onProjection?: (views: Projection[], metrics: InputSectionMetric[]) => void;
 }): string => {
     const memoryBlock = (Array.isArray(params.shortMemoryTexts) ? params.shortMemoryTexts : [])
         .map((item) => 格式化短期记忆展示文本(item || ''))
@@ -192,52 +165,62 @@ export const 构建世界演变上下文文本 = (params: {
     const dueHints = (Array.isArray(params.dueHints) ? params.dueHints : [])
         .map(item => (item || '').trim())
         .filter(Boolean);
-    const evolutionCandidates = [
-        ...dynamicHints.map(item => `线索驱动：${item}`),
-        ...dueHints.map(item => `到期驱动：${item}`)
+    const query = [JSON.stringify(params.envData ?? {}), ...dueHints, ...dynamicHints, currentTurnPlanText, currentTurnBody].join('\n');
+    const views = [
+        projectAuxiliaryState(params.envData ?? {}, { name: 'environment', root: '环境', maxChars: 1000 }),
+        projectAuxiliaryState(params.worldData ?? {}, { name: 'world', root: '世界', maxChars: 12000, query, currentTime: currentGameTime }),
+        projectAuxiliaryState(提炼世界演变剧情锚点(params.storyData), { name: 'story', root: '剧情', maxChars: 2000, query, currentTime: currentGameTime })
     ];
-
-    return [
+    const metrics: InputSectionMetric[] = views.map(view => view.metric);
+    const text = (name: InputSectionMetric['name'], source: string, limit: number) => {
+        const result = boundedText(source, limit);
+        metrics.push({ name, sourceChars: countChars(source), sentChars: countChars(result) });
+        return result || '无';
+    };
+    const result = [
+        TASK_VIEW_RULES,
         '【世界观提示词】',
-        (params.worldPrompt || '').trim() || '暂无',
+        text('lore', (params.worldPrompt || '').trim() || '暂无', 2200),
         '',
         '【世界演化规则】',
-        (params.worldEvolutionPrompt || '').trim() || '暂无',
+        text('rules', (params.worldEvolutionPrompt || '').trim() || '暂无', 3000),
         '',
         '【当前游戏内时间】',
         currentGameTime,
         '',
         '【当前环境】',
-        序列化世界演变展示上下文(params.envData ?? {}),
+        views[0].text,
         '',
         '【当前世界】',
-        序列化世界演变展示上下文(params.worldData ?? {}),
+        views[1].text,
         '',
         '【当前剧情锚点】',
-        序列化世界演变展示上下文(提炼世界演变剧情锚点(params.storyData)),
+        views[2].text,
         '',
         '【本回合前台已发生事实】',
-        currentTurnBody,
+        text('body', currentTurnBody, 4000),
         '',
         '【本回合<剧情规划>】',
-        currentTurnPlanText,
+        text('plan', currentTurnPlanText, 1000),
         '',
         '【本回合主链已落地命令】',
-        currentTurnCommandsText,
+        text('commands', currentTurnCommandsText, 1200),
         '',
         '【短期记忆（最近）】',
-        memoryBlock,
+        text('memory', memoryBlock, 1200),
         '',
         '【最近数回合前台回顾】',
-        scriptBlock,
+        text('history', scriptBlock.includes(currentTurnBody) && currentTurnBody !== '暂无' ? '本回合正文已在上方提供' : scriptBlock, 500),
         '',
         '【动态世界线索】',
-        dynamicHints.length > 0 ? dynamicHints.map(item => `- ${item}`).join('\n') : '- 无',
+        text('hints', dynamicHints.length > 0 ? dynamicHints.map(item => `- ${item}`).join('\n') : '- 无', 1000),
         '',
         '【到期触发摘要】',
-        dueHints.length > 0 ? dueHints.map(item => `- ${item}`).join('\n') : '- 无',
+        text('hints', dueHints.length > 0 ? dueHints.map(item => `- ${item}`).join('\n') : '- 无', 1500),
         '',
         '【本回合可触发演变候选】',
-        evolutionCandidates.length > 0 ? evolutionCandidates.map(item => `- ${item}`).join('\n') : '- 无'
+        '候选按上方动态线索与到期摘要判断；未展示项保持原值。'
     ].join('\n');
+    params.onProjection?.(views, metrics);
+    return result;
 };

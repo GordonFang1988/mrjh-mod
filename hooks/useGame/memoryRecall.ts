@@ -1,5 +1,6 @@
 import { 记忆系统结构 } from '../../types';
 import { 规范化记忆系统, 格式化回忆名称 } from './memoryUtils';
+import { boundedText, countChars, type InputSectionMetric } from '../../utils/auxiliaryContext';
 
 export type 剧情回忆候选 = {
     id: string;
@@ -113,8 +114,8 @@ export const 预筛剧情回忆候选 = (
     const fullN = Math.max(1, Math.floor(fullCount || 20));
     const fullStartIndex = Math.max(0, sorted.length - fullN);
     const queryTerms = 提取检索词(playerInput);
-    const topK = Math.max(4, Math.floor(options?.topK || 24));
-    const recentReserve = Math.max(2, Math.floor(options?.recentReserve || 6));
+    const topK = Math.min(24, Math.max(4, Math.floor(options?.topK || 20)));
+    const recentReserve = Math.min(topK, Math.max(2, Math.floor(options?.recentReserve || 4)));
     const scored = sorted.map((item, idx) => {
         const name = typeof item?.名称 === 'string' && item.名称.trim().length > 0
             ? item.名称.trim()
@@ -139,41 +140,64 @@ export const 预筛剧情回忆候选 = (
         .slice(0, topK);
     const recentTail = scored.slice(-recentReserve);
     return Array.from(new Map(
-        [...topScored, ...recentTail]
-            .sort((a, b) => a.排序值 - b.排序值)
+        [...recentTail, ...topScored]
             .map(item => [item.id, item] as const)
-    ).values());
+    ).values()).slice(0, topK).sort((a, b) => b.相关度 - a.相关度 || b.排序值 - a.排序值);
+};
+
+const 回忆证据节选 = (raw: string, query: string, limit: number): string => {
+    if (countChars(raw) <= limit) return raw;
+    const terms = 提取检索词(query);
+    const sentences = raw.split(/(?<=[。！？\n])/).filter(Boolean);
+    const chosen = sentences.map((text, index) => ({text, index,
+        score: terms.reduce((sum, term) => sum + (text.toLowerCase().includes(term) ? term.length : 0), 0)}))
+        .sort((a, b) => b.score - a.score || a.index - b.index).slice(0, 3)
+        .sort((a, b) => a.index - b.index).map(item => item.text.trim()).join(' … ');
+    if (countChars(chosen) > limit) {
+        const lower = chosen.toLowerCase();
+        const term = [...terms].sort((a, b) => b.length - a.length).find(item => lower.includes(item));
+        if (term) {
+            const start = Math.max(0, lower.indexOf(term) - Math.floor(limit / 3));
+            return boundedText(chosen.slice(start, start + limit), limit - 8) + '〔原文节选〕';
+        }
+    }
+    return boundedText(chosen || raw, limit) + (countChars(chosen) <= limit ? '〔原文节选〕' : '');
 };
 
 export const 构建剧情回忆检索上下文 = (
     mem: 记忆系统结构,
     fullCount: number,
-    options?: { candidateIds?: string[] }
+    options?: { candidateIds?: string[]; query?: string; maxChars?: number; onMetric?: (metric: InputSectionMetric) => void; onSelected?: (ids: string[]) => void }
 ): string => {
     const normalized = 规范化记忆系统(mem);
     const archives = Array.isArray(normalized.回忆档案) ? [...normalized.回忆档案] : [];
     if (archives.length === 0) return '暂无可用回忆。';
     const sorted = archives.sort((a, b) => (a.回合 || 0) - (b.回合 || 0));
-    const fullN = Math.max(1, Math.floor(fullCount || 20));
-    const fullStartIndex = Math.max(0, sorted.length - fullN);
-    const candidateIdSet = options?.candidateIds && options.candidateIds.length > 0
-        ? new Set(options.candidateIds)
-        : null;
-    const candidateSummaryLine = candidateIdSet
-        ? `【本地预筛可能相关】\n${Array.from(candidateIdSet).join(' | ')}`
-        : '';
-    const body = sorted.map((item, idx) => {
+    void fullCount; // Compatibility argument; full originals are fetched after retrieval.
+    const indexed = new Map(sorted.map((item, idx) => [item.名称 || 格式化回忆名称(item.回合 || idx + 1), item]));
+    const candidateIds = options?.candidateIds ?? sorted.slice(-20).map(item => item.名称);
+    const candidates = [...new Set(candidateIds)].slice(0, 24).flatMap(id => indexed.has(id) ? [indexed.get(id)!] : []);
+    const limit = Math.max(500, Math.min(10000, options?.maxChars || 10000));
+    const header = '【候选回忆摘要与证据节选】\n只检索下列编号；完整档案按选中结果读取。\n';
+    let used = countChars(header), sent = 0;
+    const selectedIds: string[] = [];
+    const body = candidates.map((item, idx) => {
         const name = typeof item?.名称 === 'string' && item.名称.trim().length > 0
             ? item.名称.trim()
             : 格式化回忆名称((item?.回合 || idx + 1));
-        const candidateMarker = candidateIdSet?.has(name) ? '\n本地预筛：可能相关' : '';
-        if (idx >= fullStartIndex) {
-            return `${name}：${candidateMarker}\n原文：\n${(item?.原文 || '').trim() || '（无原文）'}`;
-        }
-        return `${name}：${candidateMarker}\n短期记忆：${(item?.概括 || '').trim() || '（无概括）'}`;
+        const summary = boundedText((item?.概括 || '').trim(), 400);
+        const excerpt = 回忆证据节选((item?.原文 || '').trim(), options?.query || '', summary ? 200 : 500);
+        const block = `${name}：\n概括：${summary || '（无概括）'}\n证据节选：${excerpt || '（无原文）'}`;
+        const size = countChars(block) + 2;
+        if (used + size > limit) return '';
+        used += size; sent += 1; selectedIds.push(name); return block;
     }).filter(Boolean).join('\n\n');
 
-    return [candidateSummaryLine, body].filter(Boolean).join('\n\n');
+    const result = header + body;
+    options?.onSelected?.(selectedIds);
+    options?.onMetric?.({name: 'recall', sourceChars: sorted.reduce((sum, item) => sum + countChars((item.原文 || '') + (item.概括 || '')), 0),
+        sentChars: countChars(result), sourceItems: sorted.length, sentItems: sent, omittedItems: sorted.length - sent});
+    return result;
 };
 
 export const 基于候选生成回忆回退结果 = (
@@ -208,25 +232,33 @@ export const 基于候选生成回忆回退结果 = (
 
 export const 根据检索结果构建剧情回忆标签 = (
     mem: 记忆系统结构,
-    parsed: { strongIds: string[]; weakIds: string[] }
+    parsed: { strongIds: string[]; weakIds: string[] },
+    options?: { query?: string; maxChars?: number }
 ): string => {
     const normalizedMem = 规范化记忆系统(mem);
     const archives = Array.isArray(normalizedMem.回忆档案) ? normalizedMem.回忆档案 : [];
     const mapByName = new Map<string, any>(archives.map((item) => [item.名称, item]));
 
-    const uniqueStrong = Array.from(new Set(parsed.strongIds));
-    const uniqueWeak = Array.from(new Set(parsed.weakIds.filter((id) => !uniqueStrong.includes(id))));
+    const uniqueStrong = Array.from(new Set(parsed.strongIds)).filter(id => mapByName.has(id)).slice(0, 5);
+    const uniqueWeak = Array.from(new Set(parsed.weakIds.filter((id) => !uniqueStrong.includes(id)))).filter(id => mapByName.has(id)).slice(0, 6);
+    let available = Math.min(16000, options?.maxChars || 16000) - 100;
 
     const strongBlocks = uniqueStrong.map((id) => {
         const matched = mapByName.get(id);
         const rawText = typeof matched?.原文 === 'string' ? matched.原文.trim() : '';
-        return `${id}：\n${rawText || '（无原文）'}`;
-    });
+        const content = 回忆证据节选(rawText, options?.query || '', Math.min(4000, available - 60));
+        const block = `${id}：\n${content || '（无原文）'}`;
+        if (available < countChars(block) + 2) return '';
+        available -= countChars(block) + 2;
+        return block;
+    }).filter(Boolean);
     const weakBlocks = uniqueWeak.map((id) => {
         const matched = mapByName.get(id);
         const summary = typeof matched?.概括 === 'string' ? matched.概括.trim() : '';
-        return `${id}：\n${summary || '（无概括）'}`;
-    });
+        const block = `${id}：\n${boundedText(summary, Math.min(600, available - 60)) || '（无概括）'}`;
+        if (available < countChars(block) + 2) return '';
+        available -= countChars(block) + 2; return block;
+    }).filter(Boolean);
 
     return [
         '强回忆：',

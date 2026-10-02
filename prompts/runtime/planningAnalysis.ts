@@ -1,6 +1,4 @@
-import { 核心_剧情推动 } from '../core/story';
 import { 构建女主剧情规划协议 } from '../core/heroinePlan';
-import { 构建女主规划专项提示词 } from '../core/heroinePlanCot';
 
 export const 构建统一规划分析系统提示词 = (options?: { heroineEnabled?: boolean; ntl?: boolean; fandom?: boolean }): string => {
     const heroineEnabled = options?.heroineEnabled === true;
@@ -13,11 +11,10 @@ export const 构建统一规划分析系统提示词 = (options?: { heroineEnabl
         ? 构建女主剧情规划协议({ ntl, fandom })
         : '';
     const heroineThinking = heroineEnabled
-        ? 构建女主规划专项提示词({ ntl, fandom })
+        ? '<女主剧情规划思考协议>简短核对阶段、认知、关系及主线承接；只用已发生事实修订当前激活女主规划，读者暗线不作人物已知，不展开固定步骤审计。</女主剧情规划思考协议>'
         : '';
 
     return [
-        核心_剧情推动.内容,
         heroineProtocol,
         heroineThinking,
         [

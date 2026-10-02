@@ -1,4 +1,5 @@
 /** Bounded local metrics only. Request/response bodies and credentials never enter the log. */
+import type { AuxiliaryInputMetric, InputSectionMetric } from '../../utils/auxiliaryContext';
 export const API_DIAGNOSTIC_LIMIT = 60;
 const STORAGE_KEY = 'mrjh-api-diagnostics:v1';
 const tasks = ['story', 'world-evolution', 'planning', 'variable', 'recall', 'polish', 'world-generation', 'realm-generation', 'novel', 'connection-test', 'other'] as const;
@@ -17,6 +18,7 @@ export type ApiCallMetric = {
     startedAt: number; durationMs?: number; status: Status; inputChars: number; messageCount: number;
     maxOutputTokens?: number; requestedStream: boolean; retryCount: number; retryWaitMs: number;
     fallbackCount: number; attempts: ApiAttemptMetric[]; errorKind?: string;
+    inputBreakdown?: AuxiliaryInputMetric;
 };
 const clock = () => performance.now();
 const millis = (value: number) => Math.max(0, Math.round(value));
@@ -27,12 +29,23 @@ const origin = (value: unknown) => {
     catch { return ''; }
 };
 const numeric = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+const sectionNames = ['rules','identity','schema','analysis','extra','world','social','story','heroine','environment','body','history','memory','plan','commands','hints','lore','recall','query','trigger','novel','worldbook'];
+const safeBreakdown = (value: any): AuxiliaryInputMetric | undefined => {
+    if (value?.version !== 1 || !numeric(value.budgetChars) || !Array.isArray(value.sections)) return undefined;
+    const clean = (rows: any[]): InputSectionMetric[] => rows.slice(0, 48).flatMap(row => {
+        if (!sectionNames.includes(row?.name)) return [];
+        return [{name: row.name, sourceChars: numeric(row.sourceChars) || 0, sentChars: numeric(row.sentChars) || 0,
+            sourceItems: numeric(row.sourceItems), sentItems: numeric(row.sentItems), omittedItems: numeric(row.omittedItems)}];
+    });
+    return {version: 1, budgetChars: value.budgetChars, sections: clean(value.sections),
+        details: Array.isArray(value.details) ? clean(value.details) : undefined};
+};
 const errorKind = (error: unknown): string => {
     const item = error as { name?: string; message?: string; status?: number };
     if (item?.name === 'AbortError') return 'cancelled';
     if (numeric(item?.status)) return 'http';
     const message = String(item?.message || '').toLowerCase();
-    return /timeout|timed out/.test(message) ? 'timeout'
+    return /输出.*截断/.test(message) ? 'output-limit' : /timeout|timed out/.test(message) ? 'timeout'
         : /fetch|network/.test(message) ? 'network'
         : /empty/.test(message) ? 'empty-output'
         : /stream|sse|protocol/.test(message) ? 'protocol' : 'request-error';
@@ -67,7 +80,7 @@ const restore = (value: any): ApiCallMetric | undefined => {
         inputChars:numeric(value.inputChars) || 0, messageCount:numeric(value.messageCount) || 0,
         maxOutputTokens:numeric(value.maxOutputTokens), requestedStream:value.requestedStream === true,
         retryCount:numeric(value.retryCount) || 0, retryWaitMs:numeric(value.retryWaitMs) || 0,
-        fallbackCount:numeric(value.fallbackCount) || 0, attempts,errorKind:safeText(value.errorKind) };
+        fallbackCount:numeric(value.fallbackCount) || 0, attempts,errorKind:safeText(value.errorKind), inputBreakdown:safeBreakdown(value.inputBreakdown) };
 };
 const load = () => {
     if (loaded) return;
@@ -89,6 +102,7 @@ const persist = () => {
 export const beginApiDiagnostic = (input: {
     task?: ApiDiagnosticTask; model: string; provider?: string; endpoint: string; transportEndpoint?: string; proxied: boolean;
     inputChars: number; messageCount: number; maxOutputTokens?: number; requestedStream: boolean;
+    inputBreakdown?: AuxiliaryInputMetric;
 }) => {
     load();
     const started = clock();
@@ -97,13 +111,14 @@ export const beginApiDiagnostic = (input: {
         model:safeText(input.model),provider:safeText(input.provider),endpointOrigin:origin(input.endpoint),transportOrigin:origin(input.transportEndpoint || input.endpoint),
         proxied:input.proxied,startedAt:Date.now(),status:'running',inputChars:input.inputChars,
         messageCount:input.messageCount,maxOutputTokens:input.maxOutputTokens,requestedStream:input.requestedStream,
-        retryCount:0,retryWaitMs:0,fallbackCount:0,attempts:[]
+        retryCount:0,retryWaitMs:0,fallbackCount:0,attempts:[],inputBreakdown:safeBreakdown(input.inputBreakdown)
     };
     records.push(record);
     active.add(record.id);
     if (records.length > API_DIAGNOSTIC_LIMIT) { omitted += records.length-API_DIAGNOSTIC_LIMIT; records=records.slice(-API_DIAGNOSTIC_LIMIT); }
     persist();
     return {
+        outputTruncated: () => record.attempts.at(-1)?.finishReason === 'length',
         retry: () => { record.retryCount += 1; persist(); },
         retryWait: (duration: number) => { record.retryWaitMs += millis(duration); persist(); },
         fallback: () => { record.fallbackCount += 1; persist(); },
@@ -194,5 +209,6 @@ export const exportApiDiagnostics = () => {
         limitations:['仅记录本浏览器近期文本 API 调用，不含完整提示词、回复正文或密钥；工作流重新执行会另记一次调用。',
             '响应头、首个网络数据、首个模型输出、首个 content 字段分别计时；非流式或降级结果没有可测的首字速度。',
             '字符速度是客户端接收区间均值，受代理缓冲影响；Token 用量仅在接口实际返回时记录。',
+            'inputBreakdown.sections 是角色兼容合并前各消息的字符统计；details 是内部块和注入来源的预处理统计，存在父子关系且可能再受外层预算筛选，不能相加。inputChars 是实际发送的最终消息总量。',
             '历史 running 记录可能来自刷新或中断，未记录的旧调用不能追溯计时。']};
 };

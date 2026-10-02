@@ -20,6 +20,7 @@ import { 构建同人运行时提示词包 } from '../../prompts/runtime/fandom'
 import { 获取激活小说拆分注入文本 } from '../../services/novelDecompositionInjection';
 import { 按功能开关过滤提示词内容, 裁剪修炼体系上下文数据 } from '../../utils/promptFeatureToggles';
 import { 同步剧情小说分解时间校准 } from '../../services/novelDecompositionCalibration';
+import { boundedText, type InputSectionMetric } from '../../utils/auxiliaryContext';
 
 type 规划更新工作流依赖 = {
     apiConfig: any;
@@ -199,9 +200,15 @@ export const 创建规划更新工作流 = (deps: 规划更新工作流依赖) =
             currentPlayerInput: params.playerInput,
             currentGameTime: params.gameTime,
             currentResponse: params.response,
-            maxTurns: 3
+            maxTurns: 1
         });
-        const recentBodiesText = deps.构建最近完整正文上下文(recentBodyRounds);
+        const previousSummaries = deps.历史记录.filter(item => item?.role === 'assistant' && item?.structuredResponse !== params.response)
+            .slice(-2).map(item => boundedText(item?.structuredResponse?.shortTerm, 400)).filter(Boolean);
+        const recentBodiesText = [
+            previousSummaries.length ? '【前两回合摘要】\n' + previousSummaries.join('\n') : '',
+            params.response.shortTerm ? '【本回合摘要】\n' + boundedText(params.response.shortTerm, 500) : '',
+            deps.构建最近完整正文上下文(recentBodyRounds)
+        ].filter(Boolean).join('\n\n');
         if (!recentBodiesText) {
             return {
                 updated: false,
@@ -263,6 +270,7 @@ export const 创建规划更新工作流 = (deps: 规划更新工作流依赖) =
                 : [])
         ]);
 
+        const materialMetrics: InputSectionMetric[] = [];
         const worldbookExtra = 按功能开关过滤提示词内容(构建世界书注入文本({
             books: Array.isArray(deps.worldbooks) ? deps.worldbooks : [],
             scopes: heroineEnabled ? ['story_plan', 'heroine_plan'] : ['story_plan'],
@@ -270,14 +278,16 @@ export const 创建规划更新工作流 = (deps: 规划更新工作流依赖) =
             social: params.state.社交,
             world: params.state.世界,
             history: deps.历史记录,
-            extraTexts: [params.playerInput, latestBodyText, currentPlanText, ...auditFocus]
+            extraTexts: [params.playerInput, latestBodyText, currentPlanText, ...auditFocus],
+            onMetric: metric => materialMetrics.push(metric)
         }).combinedText, normalizedGameConfig);
         const novelDecompositionPrompt = 按功能开关过滤提示词内容(await 获取激活小说拆分注入文本(
             deps.apiConfig,
             'planning',
             deps.开局配置,
             alignedStoryForPlanning,
-            deps.角色?.姓名 || ''
+            deps.角色?.姓名 || '',
+            metric => materialMetrics.push(metric)
         ), normalizedGameConfig);
         const planningExtraPrompt = [
             worldbookExtra,
@@ -325,6 +335,7 @@ export const 创建规划更新工作流 = (deps: 规划更新工作流依赖) =
             ntlEnabled: normalizedGameConfig.剧情风格 === 'NTL后宫',
             fandomEnabled,
             extraPrompt: planningExtraPrompt,
+            contextMetrics: materialMetrics,
             gptMode: 独立规划分析GPT模式
         }, planningApi);
 

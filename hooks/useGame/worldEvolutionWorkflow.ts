@@ -6,7 +6,6 @@ import { 规范化游戏设置 } from '../../utils/gameSettings';
 import { 构建世界书注入文本 } from '../../utils/worldbook';
 import { 数值_世界演化 } from '../../prompts/stats/world';
 import { 规范化记忆系统 } from './memoryUtils';
-import { formatHistoryToScript } from './historyUtils';
 import { 构建世界演变COT提示词, 世界演变COT伪装历史消息提示词 } from '../../prompts/runtime/worldEvolutionCot';
 import { 环境时间转标准串 } from './timeUtils';
 import { 构建世界演变上下文文本, 规范化世界演变命令列表 } from './worldEvolutionUtils';
@@ -15,6 +14,7 @@ import { 构建同人运行时提示词包 } from '../../prompts/runtime/fandom'
 import { 获取激活小说拆分注入文本 } from '../../services/novelDecompositionInjection';
 import { 按功能开关过滤提示词内容, 裁剪修炼体系上下文数据 } from '../../utils/promptFeatureToggles';
 import { 提取响应规划文本 } from './thinkingContext';
+import type { Projection, InputSectionMetric } from '../../utils/auxiliaryContext';
 
 export type 世界演变触发参数 = {
     来源?: 'manual' | 'auto_due' | 'story_dynamic' | 'story_dynamic_and_due';
@@ -158,10 +158,10 @@ export const 执行世界演变更新工作流 = async (
         });
         const worldStory = rawWorldStory;
         const worldShortMemoryTexts = (Array.isArray(规范化记忆系统(deps.记忆系统).短期记忆) ? 规范化记忆系统(deps.记忆系统).短期记忆 : [])
-            .slice(-8)
+            .slice(-4)
             .map(item => (item || '').trim())
             .filter(Boolean);
-        const worldScriptText = formatHistoryToScript(deps.按回合窗口裁剪历史(deps.历史记录, 6)) || '暂无';
+        const worldScriptText = '近期承接使用下方短期记忆；本回合事实单独提供。';
         const currentTurnBody = (() => {
             const currentResponseBody = 提取响应完整正文文本(params?.currentResponse);
             if (currentResponseBody) return currentResponseBody;
@@ -202,6 +202,8 @@ export const 执行世界演变更新工作流 = async (
         }
         deps.世界演变去重签名Ref.current = signature;
 
+        let contextViews: Projection[] = [];
+        let contextMetrics: InputSectionMetric[] = [];
         const worldContext = 构建世界演变上下文文本({
             worldPrompt,
             worldEvolutionPrompt,
@@ -215,7 +217,8 @@ export const 执行世界演变更新工作流 = async (
             currentTurnCommandsText,
             currentGameTime: 环境时间转标准串(worldEnv) || '',
             dynamicHints,
-            dueHints
+            dueHints,
+            onProjection: (views, metrics) => { contextViews = views; contextMetrics = metrics; }
         });
         const worldbookExtraPrompt = 按功能开关过滤提示词内容(构建世界书注入文本({
             books: deps.worldbooks,
@@ -223,14 +226,16 @@ export const 执行世界演变更新工作流 = async (
             environment: worldEnv,
             world: worldState,
             history: deps.历史记录,
-            extraTexts: [currentTurnPlanText, ...dynamicHints, ...dueHints]
+            extraTexts: [currentTurnPlanText, ...dynamicHints, ...dueHints],
+            onMetric: metric => contextMetrics.push(metric)
         }).combinedText, worldRuntimeGameConfig);
         const novelDecompositionPrompt = 按功能开关过滤提示词内容(await 获取激活小说拆分注入文本(
             deps.apiSettings,
             'world_evolution',
             deps.开局配置,
             worldStory,
-            worldStateBase?.角色?.姓名 || deps.角色?.姓名 || ''
+            worldStateBase?.角色?.姓名 || deps.角色?.姓名 || '',
+            metric => contextMetrics.push(metric)
         ), worldRuntimeGameConfig);
         const worldExtraPrompt = [
             typeof worldRuntimeGameConfig.额外提示词 === 'string'
@@ -259,7 +264,8 @@ export const 执行世界演变更新工作流 = async (
             worldCotPseudoPrompt,
             worldCotPrompt,
             fandomPromptBundle.enabled,
-            独立世界演变GPT模式
+            独立世界演变GPT模式,
+            { views: contextViews, metrics: contextMetrics }
         );
         const normalizedCommands = 规范化世界演变命令列表(result.commands as any);
         const rawCommandCount = Array.isArray(result.commands) ? result.commands.length : 0;

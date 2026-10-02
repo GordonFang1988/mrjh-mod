@@ -4,6 +4,16 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-02', date: '2026年10月2日', updates: [{
+        id: '2026-10-02-v1.1.1', time: '23:19', version: 'v1.1.1',
+        title: '优化回忆、世界演化与规划分析的输入',
+        summary: '减少辅助任务重复读取的历史与无关资料，并补充分块诊断，方便对比实际回合的速度和效果。',
+        items: [
+            '回忆先筛选相关候选，再按需读取选中的原文；世界与规划优先使用当前事实、相关人物和到期事件，限制单次输入规模。',
+            '修复小说资料和世界书预算失效的问题，减少重复注入与固定长篇分析要求。',
+            '完整存档与回忆档案继续保留；局部视图沿用原始索引，证据不足或输出不完整时保护已有状态。',
+            '近期 API 诊断新增输入分块的处理前后长度和条目数，便于比较输入、首字等待和输出耗时。实际剧情效果与速度仍需游玩验证。'
+        ]
+    }, {
         id: '2026-10-02-v1.1.0', time: '17:47', version: 'v1.1.0',
         title: '新增近期 API 性能诊断',
         summary: '诊断可查看各文本任务的响应等待、首字、输出速度和重试，导出只保留近期回合与调用。',

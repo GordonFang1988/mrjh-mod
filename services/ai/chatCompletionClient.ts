@@ -718,6 +718,8 @@ export const 请求模型文本 = async (
         responseFormat?: 响应格式类型;
         errorDetailLimit?: number;
         diagnosticTask?: ApiDiagnosticTask;
+        inputBreakdown?: import('../../utils/auxiliaryContext').AuxiliaryInputMetric;
+        rejectTruncated?: boolean;
     }
 ): Promise<string> => {
     const protocol: 请求协议类型 = 是否DeepSeek接口配置(apiConfig) ? 'deepseek' : 'openai';
@@ -735,12 +737,17 @@ export const 请求模型文本 = async (
     );
 
     const endpoint = 构建OpenAI端点(apiConfig.baseUrl, apiConfig.供应商, apiConfig.model);
+    const inputChars = normalizedMessages.reduce((count, message) => count + Array.from(message.content).length, 0);
+    if (options.inputBreakdown && inputChars > options.inputBreakdown.budgetChars) {
+        throw new Error('辅助任务消息兼容处理后超过输入预算，本次未调用 API');
+    }
     const telemetry = beginApiDiagnostic({
         task:options.diagnosticTask,model:apiConfig.model,provider:apiConfig.供应商,endpoint,
         transportEndpoint:getOpenCodeUrl(endpoint) ? OPENCODE_PROXY_URL : endpoint,
         proxied:!!getOpenCodeUrl(endpoint),messageCount:normalizedMessages.length,
-        inputChars:normalizedMessages.reduce((count,message)=>count+Array.from(message.content).length,0),
-        maxOutputTokens:计算最大输出Token(apiConfig),requestedStream:options.streamOptions?.stream === true
+        inputChars,
+        maxOutputTokens:计算最大输出Token(apiConfig),requestedStream:options.streamOptions?.stream === true,
+        inputBreakdown:options.inputBreakdown
     });
     try {
         const text = await 带重试执行(`请求模型文本(${protocol})`, async () => {
@@ -762,6 +769,9 @@ export const 请求模型文本 = async (
             onRetry:telemetry.retry,
             onRetryWait:telemetry.retryWait
         });
+        if (options.rejectTruncated && telemetry.outputTruncated()) {
+            throw new Error('辅助任务输出被截断，本次结果不写入存档');
+        }
         telemetry.finish();
         return text;
     } catch (error) {

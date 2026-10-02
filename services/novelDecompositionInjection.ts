@@ -16,6 +16,7 @@ import {
     应用剧情小说时间校准到分段,
     规范化章节时间校准列表
 } from './novelDecompositionCalibration';
+import { budgetTextRecords, countChars, type InputSectionMetric } from '../utils/auxiliaryContext';
 import { 获取同人角色替换规则列表 } from '../utils/openingConfig';
 
 const 读取文本 = (value: unknown): string => (typeof value === 'string' ? value : '');
@@ -869,7 +870,7 @@ const 构建统一滑窗章节注入 = (
 
 const 按上限裁切文本 = (text: string, maxChars: number): string => (
     maxChars > 0 && text.length > maxChars
-        ? text.slice(0, maxChars).trim()
+        ? budgetTextRecords(text, maxChars)
         : text
 );
 
@@ -919,9 +920,10 @@ const 小说拆分链路已启用 = (settings: 接口设置结构 | null | undef
 };
 
 const 获取链路上限 = (settings: 接口设置结构 | null | undefined, target: 小说拆分注入目标类型): number => {
-    void settings;
-    void target;
-    return 0;
+    // Main-story policy remains independent; this optimization budgets auxiliary tasks.
+    if (target === 'main_story') return 0;
+    const configured = Number(settings?.功能模型占位?.小说拆分详细注入上限);
+    return Math.min(8000, Math.max(500, Number.isFinite(configured) && configured > 0 ? configured : 4000));
 };
 
 const 获取优先数据集 = async (openingConfig?: OpeningConfig): Promise<小说拆分数据集结构 | null> => {
@@ -949,7 +951,8 @@ export const 获取激活小说拆分注入文本 = async (
     target: 小说拆分注入目标类型,
     openingConfig?: OpeningConfig,
     story?: 剧情系统结构 | null,
-    playerName?: string
+    playerName?: string,
+    onMetric?: (metric: InputSectionMetric) => void
 ): Promise<string> => {
     if (!小说拆分链路已启用(settings, target)) return '';
 
@@ -957,22 +960,24 @@ export const 获取激活小说拆分注入文本 = async (
     if (!activeDataset) return '';
 
     const maxChars = 获取链路上限(settings, target);
+    const finish = (source: string): string => {
+        const replaced = 应用同人角色替换(source, openingConfig, playerName);
+        const final = 按上限裁切文本(replaced, maxChars);
+        onMetric?.({ name: 'novel', sourceChars: countChars(replaced), sentChars: countChars(final) });
+        return final;
+    };
     const runtimeText = 构建实时章节注入文本(activeDataset, target, story);
     if (runtimeText.trim()) {
-        return 应用同人角色替换(按上限裁切文本(runtimeText, maxChars), openingConfig, playerName);
+        return finish(runtimeText);
     }
 
     const snapshots = await 读取小说拆分注入快照列表();
     const matched = snapshots.find((item) => item.数据集ID === activeDataset.id && item.目标链路 === target);
     if (matched?.文本?.trim()) {
-        return 应用同人角色替换(按上限裁切文本(matched.文本, maxChars), openingConfig, playerName);
+        return finish(matched.文本);
     }
 
-    return 应用同人角色替换(
-        构建小说拆分注入快照(activeDataset, target, { maxChars }).文本,
-        openingConfig,
-        playerName
-    );
+    return finish(构建小说拆分注入快照(activeDataset, target, { maxChars: 0 }).文本);
 };
 
 export const 获取开局小说拆分注入文本 = async (

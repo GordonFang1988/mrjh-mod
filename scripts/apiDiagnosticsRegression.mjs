@@ -151,10 +151,17 @@ try {
  assert.equal(JSON.parse(values.get('mrjh-api-diagnostics:v1')).records.length,60);
  const stored=JSON.parse(values.get('mrjh-api-diagnostics:v1'));
  stored.records.at(-1).apiKey=secret;stored.records.at(-1).prompt='PRIVATE STORED PROMPT';
+ stored.records.at(-1).inputBreakdown={version:1,budgetChars:48000,sections:[
+  {name:'world',sourceChars:100,sentChars:20,prompt:'PRIVATE STORED PROMPT',apiKey:secret},
+  {name:secret,sourceChars:99,sentChars:99}],
+  details:[{name:'novel',sourceChars:1000,sentChars:400,payload:secret}]};
  values.set('mrjh-api-diagnostics:v1',JSON.stringify(stored));
  const reloaded=await import(url+'?reload');
  log=reloaded.exportApiDiagnostics();
  assert.equal(log.calls.length,60);assert.ok(!JSON.stringify(log).includes('PRIVATE STORED PROMPT'));assert.ok(!JSON.stringify(log).includes(secret));
+ assert.equal(log.calls.at(-1).inputBreakdown.sections.length,1);
+ assert.equal(log.calls.at(-1).inputBreakdown.details[0].name,'novel');
+ assert.equal(log.calls.at(-1).inputBreakdown.details[0].sourceChars,1000);
  Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{getItem:()=>{throw Error('blocked');},setItem:()=>{throw Error('blocked');}}});
  const unavailable=await import(url+'?storage-blocked');
  const metric=unavailable.beginApiDiagnostic({model:'fixture',endpoint:'https://example',proxied:false,inputChars:1,messageCount:1,requestedStream:false});metric.finish();

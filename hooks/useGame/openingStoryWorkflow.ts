@@ -38,7 +38,8 @@ import { 构建剧情风格助手提示词 } from '../../prompts/runtime/storySt
 import { 构建真实世界模式提示词 } from '../../prompts/runtime/realWorldMode';
 import { 构建运行时额外提示词 } from '../../prompts/runtime/nsfw';
 import { 构建世界演变COT提示词, 世界演变COT伪装历史消息提示词 } from '../../prompts/runtime/worldEvolutionCot';
-import { 构建开局世界演变初始化上下文, 开局世界演变初始化附加提示词 } from '../../prompts/runtime/openingWorldEvolutionInit';
+import type { Projection, InputSectionMetric } from '../../utils/auxiliaryContext';
+import { 开局世界演变初始化附加提示词 } from '../../prompts/runtime/openingWorldEvolutionInit';
 import {
     构建开局规划初始化审计重点,
     构建开局规划初始化正文上下文,
@@ -970,26 +971,24 @@ export const 执行开场剧情生成工作流 = async (
                 },
                 run: async () => {
                     const worldCommandTexts = 构建带索引命令文本(responseForExecution.tavern_commands || []);
-                    const worldInitContext = 构建开局世界演变初始化上下文({
-                        openingBodyText,
-                        openingPlanText,
-                        openingCommandTexts: worldCommandTexts,
-                        currentGameTime: 环境时间转标准串(simulatedOpeningState.环境) || '未知时间'
-                    });
+                    const materialMetrics: InputSectionMetric[] = [];
+                    const worldInitContext = '开局初始化：前台正文、规划与已落地命令已在世界上下文提供，依据这些事实建立最小后台状态。';
                     const worldbookExtra = 按功能开关过滤提示词内容(构建世界书注入文本({
                         books: deps.worldbooks,
                         scopes: ['world_evolution'],
                         environment: simulatedOpeningState.环境,
                         world: simulatedOpeningState.世界,
                         history: [],
-                        extraTexts: [openingBodyText, openingPlanText, ...worldCommandTexts]
+                        extraTexts: [openingBodyText, openingPlanText, ...worldCommandTexts],
+                        onMetric: metric => materialMetrics.push(metric)
                     }).combinedText, openingGameConfig);
                     const worldNovelDecompositionPrompt = await 获取激活小说拆分注入文本(
                         deps.apiConfig,
                         'world_evolution',
                         options?.开局配置,
                         simulatedOpeningState.剧情,
-                        simulatedOpeningState.角色?.姓名 || deps.角色?.姓名 || ''
+                        simulatedOpeningState.角色?.姓名 || deps.角色?.姓名 || '',
+                        metric => materialMetrics.push(metric)
                     );
                     const worldExtraPrompt = [
                         开局世界演变初始化附加提示词,
@@ -1001,6 +1000,8 @@ export const 执行开场剧情生成工作流 = async (
                     ]
                         .filter(Boolean)
                         .join('\n\n');
+                    let contextViews: Projection[] = [];
+                    let contextMetrics: InputSectionMetric[] = [];
                     const worldContext = 构建世界演变上下文文本({
                         worldPrompt: openingWorldPrompt,
                         worldEvolutionPrompt: openingWorldEvolutionPrompt,
@@ -1016,7 +1017,8 @@ export const 执行开场剧情生成工作流 = async (
                             .join('\n'),
                         currentGameTime: 环境时间转标准串(simulatedOpeningState.环境) || '',
                         dynamicHints: Array.isArray(responseForExecution.dynamic_world) ? responseForExecution.dynamic_world : [],
-                        dueHints: []
+                        dueHints: [],
+                        onProjection: (views, metrics) => { contextViews = views; contextMetrics = [...metrics, ...materialMetrics]; }
                     });
                     return textAIService.generateWorldEvolutionUpdate(
                         worldContext,
@@ -1026,7 +1028,8 @@ export const 执行开场剧情生成工作流 = async (
                         openingGameConfig.启用COT伪装注入 !== false ? 世界演变COT伪装历史消息提示词 : '',
                         构建世界演变COT提示词({ fandom: openingRuntimeFandomBundle.enabled }),
                         openingRuntimeFandomBundle.enabled,
-                        openingGameConfig.独立APIGPT模式?.世界演变 === true
+                        openingGameConfig.独立APIGPT模式?.世界演变 === true,
+                        { views: contextViews, metrics: contextMetrics }
                     );
                 },
                 onError: (errorText) => {

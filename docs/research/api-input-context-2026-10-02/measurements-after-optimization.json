@@ -1,0 +1,173 @@
+{
+  "scope": "offline synthetic input characters, not tokens or provider latency",
+  "cases": {
+    "recall": {
+      "archives": 1000,
+      "candidates": 20,
+      "corpusChars": 6534,
+      "oldCorpusChars": 149260,
+      "wireChars": 6559,
+      "metric": {
+        "name": "recall",
+        "sourceChars": 1604890,
+        "sentChars": 6534,
+        "sourceItems": 1000,
+        "sentItems": 20,
+        "omittedItems": 980
+      }
+    },
+    "world": {
+      "sourceWorldChars": 345550,
+      "contextChars": 11264,
+      "wireChars": 22563,
+      "remoteDueIndex": 93,
+      "visibleEventIndices": [
+        93,
+        99,
+        98,
+        97,
+        96,
+        95,
+        94,
+        92,
+        91,
+        90,
+        89,
+        88,
+        87,
+        86,
+        85,
+        84,
+        83,
+        82,
+        81,
+        80,
+        79,
+        78,
+        77,
+        76
+      ],
+      "beforeWireChars": 384559
+    },
+    "planning": {
+      "sourceWorldChars": 345550,
+      "sourceSocialChars": 1210083,
+      "wireChars": 33032,
+      "breakdown": {
+        "version": 1,
+        "budgetChars": 48000,
+        "sections": [
+          {
+            "name": "identity",
+            "sourceChars": 837,
+            "sentChars": 837
+          },
+          {
+            "name": "rules",
+            "sourceChars": 3626,
+            "sentChars": 3626
+          },
+          {
+            "name": "schema",
+            "sourceChars": 4367,
+            "sentChars": 4367
+          },
+          {
+            "name": "analysis",
+            "sourceChars": 757,
+            "sentChars": 757
+          },
+          {
+            "name": "story",
+            "sourceChars": 23322,
+            "sentChars": 23322
+          },
+          {
+            "name": "trigger",
+            "sourceChars": 4,
+            "sentChars": 4
+          },
+          {
+            "name": "extra",
+            "sourceChars": 7,
+            "sentChars": 7
+          },
+          {
+            "name": "analysis",
+            "sourceChars": 113,
+            "sentChars": 113
+          }
+        ],
+        "details": [
+          {
+            "name": "story",
+            "sourceChars": 81866,
+            "sentChars": 2604,
+            "sourceItems": 82,
+            "sentItems": 6,
+            "omittedItems": 76
+          },
+          {
+            "name": "heroine",
+            "sourceChars": 2,
+            "sentChars": 2,
+            "sourceItems": 0,
+            "sentItems": 0,
+            "omittedItems": 0
+          },
+          {
+            "name": "world",
+            "sourceChars": 345550,
+            "sentChars": 7104,
+            "sourceItems": 570,
+            "sentItems": 61,
+            "omittedItems": 509
+          },
+          {
+            "name": "social",
+            "sourceChars": 1210083,
+            "sentChars": 5312,
+            "sourceItems": 300,
+            "sentItems": 16,
+            "omittedItems": 284
+          },
+          {
+            "name": "environment",
+            "sourceChars": 48,
+            "sentChars": 48,
+            "sourceItems": 0,
+            "sentItems": 0,
+            "omittedItems": 0
+          },
+          {
+            "name": "body",
+            "sourceChars": 50011,
+            "sentChars": 6578
+          },
+          {
+            "name": "plan",
+            "sourceChars": 3,
+            "sentChars": 3
+          },
+          {
+            "name": "hints",
+            "sourceChars": 12,
+            "sentChars": 12
+          },
+          {
+            "name": "extra",
+            "sourceChars": 0,
+            "sentChars": 0
+          }
+        ]
+      },
+      "beforeWireChars": 1705977
+    },
+    "materials": {
+      "worldbookChars": 1059,
+      "recordsChars": 119,
+      "novelAuxiliaryDefaultLimit": 4000,
+      "snapshotChars": 119
+    }
+  }
+}

@@ -1,0 +1,1308 @@
+{
+  "scope": "offline synthetic measurements; counts are Unicode characters, never estimated tokens",
+  "versions": [
+    {
+      "version": "current",
+      "baseline": [
+        {
+          "task": "world-evolution",
+          "fandom": false,
+          "messageCount": 5,
+          "inputChars": 22747,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 10554,
+              "heading": "你是 WuXia 项目的“世界演变引擎”，负责在每回合主剧情之后维护后台世界，让 NPC、事件、势力、镜头和环境按时间门槛与条件"
+            },
+            {
+              "role": "system",
+              "chars": 5861,
+              "heading": "【世界演变上下文】"
+            },
+            {
+              "role": "system",
+              "chars": 6225,
+              "heading": "<世界演变思考协议>"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 103,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "world-evolution",
+          "fandom": true,
+          "messageCount": 7,
+          "inputChars": 25420,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 11221,
+              "heading": "你是 WuXia 项目的“世界演变引擎”，负责在每回合主剧情之后维护后台世界，让 NPC、事件、势力、镜头和环境按时间门槛与条件"
+            },
+            {
+              "role": "system",
+              "chars": 811,
+              "heading": "【同人世界演变补充】"
+            },
+            {
+              "role": "system",
+              "chars": 5940,
+              "heading": "【世界演变上下文】"
+            },
+            {
+              "role": "system",
+              "chars": 6804,
+              "heading": "<世界演变思考协议>"
+            },
+            {
+              "role": "system",
+              "chars": 537,
+              "heading": "同人世界演变时，先在内部完成以下判断："
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 103,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "planning",
+          "heroine": false,
+          "fandom": false,
+          "messageCount": 7,
+          "inputChars": 18424,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 837,
+              "heading": "【AI角色】"
+            },
+            {
+              "role": "system",
+              "chars": 5430,
+              "heading": "【系统提示词】"
+            },
+            {
+              "role": "system",
+              "chars": 4379,
+              "heading": "【结构参考与更新规则】"
+            },
+            {
+              "role": "system",
+              "chars": 5980,
+              "heading": "【统一COT】"
+            },
+            {
+              "role": "assistant",
+              "chars": 1681,
+              "heading": "【本次任务】"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 113,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "planning",
+          "heroine": false,
+          "fandom": true,
+          "messageCount": 9,
+          "inputChars": 21387,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 837,
+              "heading": "【AI角色】"
+            },
+            {
+              "role": "system",
+              "chars": 6300,
+              "heading": "【系统提示词】"
+            },
+            {
+              "role": "system",
+              "chars": 1564,
+              "heading": "【同人规划补充】"
+            },
+            {
+              "role": "system",
+              "chars": 4379,
+              "heading": "【结构参考与更新规则】"
+            },
+            {
+              "role": "system",
+              "chars": 5980,
+              "heading": "【统一COT】"
+            },
+            {
+              "role": "system",
+              "chars": 529,
+              "heading": "【同人规划COT】"
+            },
+            {
+              "role": "assistant",
+              "chars": 1681,
+              "heading": "【本次任务】"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 113,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "planning",
+          "heroine": true,
+          "fandom": false,
+          "messageCount": 7,
+          "inputChars": 23531,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 837,
+              "heading": "【AI角色】"
+            },
+            {
+              "role": "system",
+              "chars": 10571,
+              "heading": "【系统提示词】"
+            },
+            {
+              "role": "system",
+              "chars": 4379,
+              "heading": "【结构参考与更新规则】"
+            },
+            {
+              "role": "system",
+              "chars": 5980,
+              "heading": "【统一COT】"
+            },
+            {
+              "role": "assistant",
+              "chars": 1647,
+              "heading": "【本次任务】"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 113,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "planning",
+          "heroine": true,
+          "fandom": true,
+          "messageCount": 9,
+          "inputChars": 27097,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 837,
+              "heading": "【AI角色】"
+            },
+            {
+              "role": "system",
+              "chars": 12044,
+              "heading": "【系统提示词】"
+            },
+            {
+              "role": "system",
+              "chars": 1564,
+              "heading": "【同人规划补充】"
+            },
+            {
+              "role": "system",
+              "chars": 4379,
+              "heading": "【结构参考与更新规则】"
+            },
+            {
+              "role": "system",
+              "chars": 5980,
+              "heading": "【统一COT】"
+            },
+            {
+              "role": "system",
+              "chars": 529,
+              "heading": "【同人规划COT】"
+            },
+            {
+              "role": "assistant",
+              "chars": 1647,
+              "heading": "【本次任务】"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 113,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "recall",
+          "messageCount": 2,
+          "inputChars": 633,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 611,
+              "heading": "你是“剧情回忆检索器”。"
+            },
+            {
+              "role": "user",
+              "chars": 22,
+              "heading": "【玩家输入】"
+            }
+          ]
+        }
+      ],
+      "growth": {
+        "worldMapDescription": {
+          "worldContextChars": 100996,
+          "receivedChars": 113894,
+          "retained": true
+        },
+        "planningWorld": {
+          "receivedChars": 119141,
+          "retained": true
+        },
+        "planningSocial": {
+          "receivedChars": 118478,
+          "retained": true
+        },
+        "worldExtra": {
+          "receivedChars": 26445,
+          "copies": 1
+        },
+        "planningExtra": {
+          "receivedChars": 28452,
+          "copies": 1
+        },
+        "recallCandidateDoesNotFilter": {
+          "includesUnselectedOldSummary": true,
+          "fullRawBlocks": 20
+        }
+      },
+      "recall": [
+        {
+          "archives": 23,
+          "candidates": 23,
+          "corpusChars": 31125,
+          "rawBlocks": 20,
+          "summaryBlocks": 3
+        },
+        {
+          "archives": 100,
+          "candidates": 24,
+          "corpusChars": 40378,
+          "rawBlocks": 20,
+          "summaryBlocks": 80
+        },
+        {
+          "archives": 1000,
+          "candidates": 24,
+          "corpusChars": 149260,
+          "rawBlocks": 20,
+          "summaryBlocks": 980
+        }
+      ],
+      "worldbook": {
+        "always": {
+          "oversizedFirstChars": 100025,
+          "oversizedSelected": 1,
+          "manySelected": 1,
+          "manyChars": 3025
+        },
+        "match_any": {
+          "oversizedFirstChars": 100025,
+          "oversizedSelected": 1,
+          "manySelected": 1,
+          "manyChars": 3025
+        }
+      },
+      "novel": {
+        "defaultDetailedLimit": 0,
+        "configuredDetailedLimit": 0,
+        "planningRuntimeChars": 300366,
+        "worldRuntimeChars": 300392,
+        "planningEffectiveCharsAtDefault": 300366
+      },
+      "overlap": {
+        "currentBodyCopies": 2,
+        "currentPlanCopies": 2
+      },
+      "staticWorldRuleChars": 3278
+    },
+    {
+      "version": "original",
+      "baseline": [
+        {
+          "task": "world-evolution",
+          "fandom": false,
+          "messageCount": 5,
+          "inputChars": 22747,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 10554,
+              "heading": "你是 WuXia 项目的“世界演变引擎”，负责在每回合主剧情之后维护后台世界，让 NPC、事件、势力、镜头和环境按时间门槛与条件"
+            },
+            {
+              "role": "system",
+              "chars": 5861,
+              "heading": "【世界演变上下文】"
+            },
+            {
+              "role": "system",
+              "chars": 6225,
+              "heading": "<世界演变思考协议>"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 103,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "world-evolution",
+          "fandom": true,
+          "messageCount": 7,
+          "inputChars": 25420,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 11221,
+              "heading": "你是 WuXia 项目的“世界演变引擎”，负责在每回合主剧情之后维护后台世界，让 NPC、事件、势力、镜头和环境按时间门槛与条件"
+            },
+            {
+              "role": "system",
+              "chars": 811,
+              "heading": "【同人世界演变补充】"
+            },
+            {
+              "role": "system",
+              "chars": 5940,
+              "heading": "【世界演变上下文】"
+            },
+            {
+              "role": "system",
+              "chars": 6804,
+              "heading": "<世界演变思考协议>"
+            },
+            {
+              "role": "system",
+              "chars": 537,
+              "heading": "同人世界演变时，先在内部完成以下判断："
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 103,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "planning",
+          "heroine": false,
+          "fandom": false,
+          "messageCount": 7,
+          "inputChars": 18424,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 837,
+              "heading": "【AI角色】"
+            },
+            {
+              "role": "system",
+              "chars": 5430,
+              "heading": "【系统提示词】"
+            },
+            {
+              "role": "system",
+              "chars": 4379,
+              "heading": "【结构参考与更新规则】"
+            },
+            {
+              "role": "system",
+              "chars": 5980,
+              "heading": "【统一COT】"
+            },
+            {
+              "role": "assistant",
+              "chars": 1681,
+              "heading": "【本次任务】"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 113,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "planning",
+          "heroine": false,
+          "fandom": true,
+          "messageCount": 9,
+          "inputChars": 21387,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 837,
+              "heading": "【AI角色】"
+            },
+            {
+              "role": "system",
+              "chars": 6300,
+              "heading": "【系统提示词】"
+            },
+            {
+              "role": "system",
+              "chars": 1564,
+              "heading": "【同人规划补充】"
+            },
+            {
+              "role": "system",
+              "chars": 4379,
+              "heading": "【结构参考与更新规则】"
+            },
+            {
+              "role": "system",
+              "chars": 5980,
+              "heading": "【统一COT】"
+            },
+            {
+              "role": "system",
+              "chars": 529,
+              "heading": "【同人规划COT】"
+            },
+            {
+              "role": "assistant",
+              "chars": 1681,
+              "heading": "【本次任务】"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 113,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "planning",
+          "heroine": true,
+          "fandom": false,
+          "messageCount": 7,
+          "inputChars": 23531,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 837,
+              "heading": "【AI角色】"
+            },
+            {
+              "role": "system",
+              "chars": 10571,
+              "heading": "【系统提示词】"
+            },
+            {
+              "role": "system",
+              "chars": 4379,
+              "heading": "【结构参考与更新规则】"
+            },
+            {
+              "role": "system",
+              "chars": 5980,
+              "heading": "【统一COT】"
+            },
+            {
+              "role": "assistant",
+              "chars": 1647,
+              "heading": "【本次任务】"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 113,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "planning",
+          "heroine": true,
+          "fandom": true,
+          "messageCount": 9,
+          "inputChars": 27097,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 837,
+              "heading": "【AI角色】"
+            },
+            {
+              "role": "system",
+              "chars": 12044,
+              "heading": "【系统提示词】"
+            },
+            {
+              "role": "system",
+              "chars": 1564,
+              "heading": "【同人规划补充】"
+            },
+            {
+              "role": "system",
+              "chars": 4379,
+              "heading": "【结构参考与更新规则】"
+            },
+            {
+              "role": "system",
+              "chars": 5980,
+              "heading": "【统一COT】"
+            },
+            {
+              "role": "system",
+              "chars": 529,
+              "heading": "【同人规划COT】"
+            },
+            {
+              "role": "assistant",
+              "chars": 1647,
+              "heading": "【本次任务】"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 113,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "recall",
+          "messageCount": 2,
+          "inputChars": 633,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 611,
+              "heading": "你是“剧情回忆检索器”。"
+            },
+            {
+              "role": "user",
+              "chars": 22,
+              "heading": "【玩家输入】"
+            }
+          ]
+        }
+      ],
+      "growth": {
+        "worldMapDescription": {
+          "worldContextChars": 100996,
+          "receivedChars": 113894,
+          "retained": true
+        },
+        "planningWorld": {
+          "receivedChars": 119141,
+          "retained": true
+        },
+        "planningSocial": {
+          "receivedChars": 118478,
+          "retained": true
+        },
+        "worldExtra": {
+          "receivedChars": 26445,
+          "copies": 1
+        },
+        "planningExtra": {
+          "receivedChars": 28452,
+          "copies": 1
+        },
+        "recallCandidateDoesNotFilter": {
+          "includesUnselectedOldSummary": true,
+          "fullRawBlocks": 20
+        }
+      },
+      "recall": [
+        {
+          "archives": 23,
+          "candidates": 23,
+          "corpusChars": 31125,
+          "rawBlocks": 20,
+          "summaryBlocks": 3
+        },
+        {
+          "archives": 100,
+          "candidates": 24,
+          "corpusChars": 40378,
+          "rawBlocks": 20,
+          "summaryBlocks": 80
+        },
+        {
+          "archives": 1000,
+          "candidates": 24,
+          "corpusChars": 149260,
+          "rawBlocks": 20,
+          "summaryBlocks": 980
+        }
+      ],
+      "worldbook": {
+        "always": {
+          "oversizedFirstChars": 100025,
+          "oversizedSelected": 1,
+          "manySelected": 1,
+          "manyChars": 3025
+        },
+        "match_any": {
+          "oversizedFirstChars": 100025,
+          "oversizedSelected": 1,
+          "manySelected": 1,
+          "manyChars": 3025
+        }
+      },
+      "novel": {
+        "defaultDetailedLimit": 0,
+        "configuredDetailedLimit": 0,
+        "planningRuntimeChars": 300366,
+        "worldRuntimeChars": 300392,
+        "planningEffectiveCharsAtDefault": 300366
+      },
+      "overlap": {
+        "currentBodyCopies": 2,
+        "currentPlanCopies": 2
+      },
+      "staticWorldRuleChars": 3278
+    },
+    {
+      "version": "player",
+      "baseline": [
+        {
+          "task": "world-evolution",
+          "fandom": false,
+          "messageCount": 5,
+          "inputChars": 29997,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 15440,
+              "heading": "你是 WuXia 项目的“世界演变引擎”，负责在每回合主剧情之后维护后台世界，让 NPC、事件、势力、镜头和环境按时间门槛与条件"
+            },
+            {
+              "role": "system",
+              "chars": 7745,
+              "heading": "【世界演变上下文】"
+            },
+            {
+              "role": "system",
+              "chars": 6705,
+              "heading": "<世界演变思考协议>"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 103,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "world-evolution",
+          "fandom": true,
+          "messageCount": 7,
+          "inputChars": 32670,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 16107,
+              "heading": "你是 WuXia 项目的“世界演变引擎”，负责在每回合主剧情之后维护后台世界，让 NPC、事件、势力、镜头和环境按时间门槛与条件"
+            },
+            {
+              "role": "system",
+              "chars": 811,
+              "heading": "【同人世界演变补充】"
+            },
+            {
+              "role": "system",
+              "chars": 7824,
+              "heading": "【世界演变上下文】"
+            },
+            {
+              "role": "system",
+              "chars": 7284,
+              "heading": "<世界演变思考协议>"
+            },
+            {
+              "role": "system",
+              "chars": 537,
+              "heading": "同人世界演变时，先在内部完成以下判断："
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 103,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "planning",
+          "heroine": false,
+          "fandom": false,
+          "messageCount": 7,
+          "inputChars": 19141,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 837,
+              "heading": "【AI角色】"
+            },
+            {
+              "role": "system",
+              "chars": 5606,
+              "heading": "【系统提示词】"
+            },
+            {
+              "role": "system",
+              "chars": 4379,
+              "heading": "【结构参考与更新规则】"
+            },
+            {
+              "role": "system",
+              "chars": 5980,
+              "heading": "【统一COT】"
+            },
+            {
+              "role": "assistant",
+              "chars": 2222,
+              "heading": "【本次任务】"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 113,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "planning",
+          "heroine": false,
+          "fandom": true,
+          "messageCount": 9,
+          "inputChars": 22104,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 837,
+              "heading": "【AI角色】"
+            },
+            {
+              "role": "system",
+              "chars": 6476,
+              "heading": "【系统提示词】"
+            },
+            {
+              "role": "system",
+              "chars": 1564,
+              "heading": "【同人规划补充】"
+            },
+            {
+              "role": "system",
+              "chars": 4379,
+              "heading": "【结构参考与更新规则】"
+            },
+            {
+              "role": "system",
+              "chars": 5980,
+              "heading": "【统一COT】"
+            },
+            {
+              "role": "system",
+              "chars": 529,
+              "heading": "【同人规划COT】"
+            },
+            {
+              "role": "assistant",
+              "chars": 2222,
+              "heading": "【本次任务】"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 113,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "planning",
+          "heroine": true,
+          "fandom": false,
+          "messageCount": 7,
+          "inputChars": 24193,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 837,
+              "heading": "【AI角色】"
+            },
+            {
+              "role": "system",
+              "chars": 10747,
+              "heading": "【系统提示词】"
+            },
+            {
+              "role": "system",
+              "chars": 4379,
+              "heading": "【结构参考与更新规则】"
+            },
+            {
+              "role": "system",
+              "chars": 5980,
+              "heading": "【统一COT】"
+            },
+            {
+              "role": "assistant",
+              "chars": 2133,
+              "heading": "【本次任务】"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 113,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "planning",
+          "heroine": true,
+          "fandom": true,
+          "messageCount": 9,
+          "inputChars": 27759,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 837,
+              "heading": "【AI角色】"
+            },
+            {
+              "role": "system",
+              "chars": 12220,
+              "heading": "【系统提示词】"
+            },
+            {
+              "role": "system",
+              "chars": 1564,
+              "heading": "【同人规划补充】"
+            },
+            {
+              "role": "system",
+              "chars": 4379,
+              "heading": "【结构参考与更新规则】"
+            },
+            {
+              "role": "system",
+              "chars": 5980,
+              "heading": "【统一COT】"
+            },
+            {
+              "role": "system",
+              "chars": 529,
+              "heading": "【同人规划COT】"
+            },
+            {
+              "role": "assistant",
+              "chars": 2133,
+              "heading": "【本次任务】"
+            },
+            {
+              "role": "user",
+              "chars": 4,
+              "heading": "开始任务"
+            },
+            {
+              "role": "assistant",
+              "chars": 113,
+              "heading": "<think>"
+            }
+          ]
+        },
+        {
+          "task": "recall",
+          "messageCount": 2,
+          "inputChars": 784,
+          "maxOutputTokens": 65536,
+          "messages": [
+            {
+              "role": "system",
+              "chars": 762,
+              "heading": "你是“剧情回忆检索器”。"
+            },
+            {
+              "role": "user",
+              "chars": 22,
+              "heading": "【玩家输入】"
+            }
+          ]
+        }
+      ],
+      "growth": {
+        "worldMapDescription": {
+          "worldContextChars": 101139,
+          "receivedChars": 119569,
+          "retained": true
+        },
+        "planningWorld": {
+          "receivedChars": 119962,
+          "retained": true
+        },
+        "planningSocial": {
+          "receivedChars": 119195,
+          "retained": true
+        },
+        "worldExtra": {
+          "receivedChars": 43248,
+          "copies": 2
+        },
+        "planningExtra": {
+          "receivedChars": 39202,
+          "copies": 2
+        },
+        "recallCandidateDoesNotFilter": {
+          "includesUnselectedOldSummary": true,
+          "fullRawBlocks": 20
+        }
+      },
+      "recall": [
+        {
+          "archives": 23,
+          "candidates": 23,
+          "corpusChars": 31125,
+          "rawBlocks": 20,
+          "summaryBlocks": 3
+        },
+        {
+          "archives": 100,
+          "candidates": 24,
+          "corpusChars": 40378,
+          "rawBlocks": 20,
+          "summaryBlocks": 80
+        },
+        {
+          "archives": 1000,
+          "candidates": 24,
+          "corpusChars": 149260,
+          "rawBlocks": 20,
+          "summaryBlocks": 980
+        }
+      ],
+      "worldbook": {
+        "always": {
+          "oversizedFirstChars": 100025,
+          "oversizedSelected": 1,
+          "manySelected": 3,
+          "manyChars": 9063
+        },
+        "match_any": {
+          "oversizedFirstChars": 100025,
+          "oversizedSelected": 1,
+          "manySelected": 1,
+          "manyChars": 3025
+        }
+      },
+      "novel": {
+        "defaultDetailedLimit": 4000,
+        "configuredDetailedLimit": 5000,
+        "planningRuntimeChars": 300366,
+        "worldRuntimeChars": 300392,
+        "planningEffectiveCharsAtDefault": 4000
+      },
+      "overlap": {
+        "currentBodyCopies": 2,
+        "currentPlanCopies": 2
+      },
+      "staticWorldRuleChars": 4541
+    }
+  ],
+  "comparison": [
+    {
+      "file": "hooks/useGame/worldEvolutionWorkflow.ts",
+      "identicalCurrentOriginal": true,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "be560556057f139f6a71032a17dc68966433f98a25d042f1048321e8ea99ab37",
+        "original": "be560556057f139f6a71032a17dc68966433f98a25d042f1048321e8ea99ab37",
+        "player": "177d6ffac31b4c59d3eae8ebe2e91a5740f1d73dcfcb2300390b5e2a7e93c782"
+      }
+    },
+    {
+      "file": "hooks/useGame/worldEvolutionUtils.ts",
+      "identicalCurrentOriginal": true,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "15a32491f83d159a3fb40c927956222688e7960f877b09cdc5a02ea21ed88a67",
+        "original": "15a32491f83d159a3fb40c927956222688e7960f877b09cdc5a02ea21ed88a67",
+        "player": "4efa1d33a06fccaf8ddacef2ab10fbe87c6dd3a575ca313270301d52435d760a"
+      }
+    },
+    {
+      "file": "hooks/useGame/planningUpdateWorkflow.ts",
+      "identicalCurrentOriginal": false,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "4b27a79ad4c55d571e5134aecac8114bb13911d4445c46dbc5802f31d5aef591",
+        "original": "2e0482e5a0fe4b15df20cfc89ae4fc30cd05a70cf4df66758875498f2670fd74",
+        "player": "0ee0b351fe0e5bb42bca4c4e770d0f55225a2ae934bbcf1aeba17617ca2ddba5"
+      }
+    },
+    {
+      "file": "hooks/useGame/recallWorkflow.ts",
+      "identicalCurrentOriginal": true,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "62a3f451cdc2aa71987e6580dcee389894f520e836b27017b8cb2192272bef3e",
+        "original": "62a3f451cdc2aa71987e6580dcee389894f520e836b27017b8cb2192272bef3e",
+        "player": "2d45391fe4ae19a5a649fe8c9f97fdba200d36e2fdb7e62a02631180a93b0527"
+      }
+    },
+    {
+      "file": "hooks/useGame/memoryRecall.ts",
+      "identicalCurrentOriginal": true,
+      "identicalOriginalPlayer": true,
+      "hashes": {
+        "current": "eeb6799ff972dde35cb120fa39c6ff807a7228520fdf4a8f3e37240b4336fcee",
+        "original": "eeb6799ff972dde35cb120fa39c6ff807a7228520fdf4a8f3e37240b4336fcee",
+        "player": "eeb6799ff972dde35cb120fa39c6ff807a7228520fdf4a8f3e37240b4336fcee"
+      }
+    },
+    {
+      "file": "hooks/useGame/historyUtils.ts",
+      "identicalCurrentOriginal": true,
+      "identicalOriginalPlayer": true,
+      "hashes": {
+        "current": "efb5d53b8a4b2da6408d4b11808293831ee76d0d247ccc6acaec566c7b8b4b32",
+        "original": "efb5d53b8a4b2da6408d4b11808293831ee76d0d247ccc6acaec566c7b8b4b32",
+        "player": "efb5d53b8a4b2da6408d4b11808293831ee76d0d247ccc6acaec566c7b8b4b32"
+      }
+    },
+    {
+      "file": "prompts/runtime/recall.ts",
+      "identicalCurrentOriginal": true,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "4307e35b78a1ca5da2f69d5a486dbb2e01f1be85545839198343ee50dbf65cdf",
+        "original": "4307e35b78a1ca5da2f69d5a486dbb2e01f1be85545839198343ee50dbf65cdf",
+        "player": "2324cd6a2e0e6777fc50b549ce1a4cced2e71f751b8a73b52f24bbfec5c73a5a"
+      }
+    },
+    {
+      "file": "prompts/runtime/worldEvolution.ts",
+      "identicalCurrentOriginal": true,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "01ad7cf192df0557ca7394343d971658f2f7996ed2cd0835311365857650a5d3",
+        "original": "01ad7cf192df0557ca7394343d971658f2f7996ed2cd0835311365857650a5d3",
+        "player": "306d59be5d7d4599d80bd04ae56d6bf40b84aac648ae9e576b58ee4332cbd5c2"
+      }
+    },
+    {
+      "file": "prompts/runtime/worldEvolutionCot.ts",
+      "identicalCurrentOriginal": true,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "ac003f28c2d9fa40198bbfa30e1223058189806d4b03e05e8864b8865992573c",
+        "original": "ac003f28c2d9fa40198bbfa30e1223058189806d4b03e05e8864b8865992573c",
+        "player": "7ceaf7e5357815c103ee967d1667e4865ff163595500599caf508292bbe91035"
+      }
+    },
+    {
+      "file": "prompts/runtime/planningAnalysis.ts",
+      "identicalCurrentOriginal": true,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "2e55cc6e2317abe7d990423f4a913a4f46f9ad392f24914e9847c697c70209b3",
+        "original": "2e55cc6e2317abe7d990423f4a913a4f46f9ad392f24914e9847c697c70209b3",
+        "player": "4bf4fb54353a333f2f3440ca58ab11f4703227dc8d4a2aab59a2384ca046bcd5"
+      }
+    },
+    {
+      "file": "prompts/runtime/planUpdateReference.ts",
+      "identicalCurrentOriginal": true,
+      "identicalOriginalPlayer": true,
+      "hashes": {
+        "current": "a50f291f7dda307762ce8c5f653dc2e4afc7f009cda158f0d83a776ba4260c29",
+        "original": "a50f291f7dda307762ce8c5f653dc2e4afc7f009cda158f0d83a776ba4260c29",
+        "player": "a50f291f7dda307762ce8c5f653dc2e4afc7f009cda158f0d83a776ba4260c29"
+      }
+    },
+    {
+      "file": "services/novelDecompositionInjection.ts",
+      "identicalCurrentOriginal": true,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "dbe20d038d03a38b8d800d8b64f5db8ef3a7dd93136977bf920d9fa3e570e305",
+        "original": "dbe20d038d03a38b8d800d8b64f5db8ef3a7dd93136977bf920d9fa3e570e305",
+        "player": "9363216a0e74e5543e0e7f92108aff914ce8140e8d39cf6af4487ef8a8bbd9be"
+      }
+    },
+    {
+      "file": "utils/worldbook.ts",
+      "identicalCurrentOriginal": true,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "367bdcc096454fb18709229ccc656d8ee1061589a3fe46f89cd95cc74f4be1f3",
+        "original": "367bdcc096454fb18709229ccc656d8ee1061589a3fe46f89cd95cc74f4be1f3",
+        "player": "e84adb783ec58d8928c25483d2b874ed4958e26c824f8eb74cad2899ef009538"
+      }
+    },
+    {
+      "file": "utils/promptFeatureToggles.ts",
+      "identicalCurrentOriginal": true,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "9b5a2aab2ad198b5ded7c02ae11a049a07c547f2a9a1231438052f1b930b2fa0",
+        "original": "9b5a2aab2ad198b5ded7c02ae11a049a07c547f2a9a1231438052f1b930b2fa0",
+        "player": "f093c0e5a10aaa967eb971bfd5565fedb29c8462ce86b497ab6d2b781f2ac9d0"
+      }
+    },
+    {
+      "file": "services/ai/storyTasks.ts",
+      "identicalCurrentOriginal": false,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "373f6292e85ab927e8b6cc517dda170004629275886471e9413a18838b61718b",
+        "original": "0302221b9c78b36fbbac80cee45361825612a3fdd5f0e9c5696c03ed7beb4ad5",
+        "player": "c4286a26c80ea921d9e056f2e84ec148adf74cf46cc88d5e78090dba5593402c"
+      }
+    },
+    {
+      "file": "services/ai/chatCompletionClient.ts",
+      "identicalCurrentOriginal": false,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "a682eb6de45498caffe24a9850161d847e100ab415144e0b942a0d215a0e8514",
+        "original": "a2ca09d8989fb38647c342c1694cef867a4e6a703b877bd9a9d7fa6df9f1435d",
+        "player": "6fbb6ebfa03886eb98dbf50832b80a61ed8a945cab27ec083e0265f69981a3ff"
+      }
+    },
+    {
+      "file": "utils/apiConfig.ts",
+      "identicalCurrentOriginal": false,
+      "identicalOriginalPlayer": false,
+      "hashes": {
+        "current": "b2656da77dfd050b791f376cca116f413c3d628a12910f1924cdd4224950c8a1",
+        "original": "8bf1eda3275062500105b8dc27ab55447f6730b4e1c5372facad9ec9415999c3",
+        "player": "b4590b3b851815612541bd7dc8d0e4dfb81cc7c0f9219cdd44cf1499f3a638d3"
+      }
+    }
+  ]
+}
