@@ -4,6 +4,16 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-02', date: '2026年10月2日', updates: [{
+        id: '2026-10-02-v1.1.0', time: '17:47', version: 'v1.1.0',
+        title: '新增近期 API 性能诊断',
+        summary: '诊断可查看各文本任务的响应等待、首字、输出速度和重试，导出只保留近期回合与调用。',
+        items: [
+            '记录最近 60 次文本 API 调用的实际模型、接口来源、输入长度、总耗时、失败状态、重试等待与流式降级，并汇总耗时最多的任务。',
+            '世界演化和规划分析接入内部流式计时；分别记录网络响应、模型首个输出、思考和正文，完整结果返回后才应用更新。',
+            '非流式响应不伪造首字或生成速度；接口忽略流式但返回有效 JSON 时直接使用该结果，避免重复生成。',
+            '导出最近 10 个游戏回合及当前播放状态，场景绑定摘要也设上限；不包含全历史、完整提示词、密钥或完整 API 回复。'
+        ]
+    }, {
         id: '2026-10-02-v1.0.14', time: '17:17', version: 'v1.0.14',
         title: '兼容旧图包中的钟灵立绘年龄标注',
         summary: '读取旧图包时校正钟灵基础立绘与两套换装的适用年龄，16 岁档案可使用现有图片。',

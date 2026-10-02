@@ -201,6 +201,7 @@ export const generateMemoryRecall = async (
     }
     const messages = 规范化文本补全消息链(messagesRaw, { 保留System: true, 合并同角色: false });
     return 请求模型文本(apiConfig, messages, {
+        diagnosticTask: 'recall',
         temperature: 0.2,
         signal,
         streamOptions
@@ -285,6 +286,7 @@ export const generatePolishedBody = async (
     const messages = 规范化文本补全消息链(messagesRaw, { 保留System: true, 合并同角色: false });
 
     const raw = await 请求模型文本(apiConfig, messages, {
+        diagnosticTask: 'polish',
         temperature: 0.6,
         signal,
         errorDetailLimit: Number.POSITIVE_INFINITY
@@ -326,6 +328,7 @@ export const generateWorldData = async (
 
     const rawText = await 请求模型文本(apiConfig, messages, {
         temperature: 0.8,
+        diagnosticTask: 'world-generation',
         streamOptions
     });
 
@@ -433,6 +436,7 @@ export const generateFandomRealmData = async (
             规范化文本补全消息链(messages, { 保留System: true, 合并同角色: false }),
             {
                 temperature: 0.5,
+                diagnosticTask: 'realm-generation',
                 streamOptions: currentStreamOptions
             }
         );
@@ -646,6 +650,8 @@ export const generateWorldEvolutionUpdate = async (
 
     const rawText = await 请求模型文本(apiConfig, messages, {
         temperature: 0.4,
+        diagnosticTask: 'world-evolution',
+        streamOptions: { stream: true },
         signal,
         errorDetailLimit: Number.POSITIVE_INFINITY
     });
@@ -764,6 +770,7 @@ export const generateVariableCalibrationUpdate = async (
 
     const rawText = await 请求模型文本(apiConfig, messages, {
         temperature: 0.2,
+        diagnosticTask: 'variable',
         signal,
         errorDetailLimit: Number.POSITIVE_INFINITY,
         streamOptions: onStreamDelta
@@ -1458,7 +1465,9 @@ export const generatePlanningAnalysis = async (
     ], { 保留System: true, 合并同角色: false }), {
         temperature: 0.3,
         signal,
-        errorDetailLimit: Number.POSITIVE_INFINITY
+        errorDetailLimit: Number.POSITIVE_INFINITY,
+        diagnosticTask: 'planning',
+        streamOptions: { stream: true }
     });
     return { ...解析规划补丁结果(rawText, '统一规划分析'), rawText };
 };
@@ -1508,6 +1517,7 @@ export const generateNovelDecomposition = async (
         temperature: 0.3,
         signal,
         errorDetailLimit: Number.POSITIVE_INFINITY,
+        diagnosticTask: 'novel',
         streamOptions
     });
 
@@ -1556,6 +1566,7 @@ export const generateStoryResponse = async (
 
     if (orderedMessages.length > 0) {
         const rawText = await 请求模型文本(apiConfig, orderedMessages, {
+            diagnosticTask: 'story',
             temperature: 0.7,
             signal,
             streamOptions,
@@ -1632,6 +1643,7 @@ export const generateStoryResponse = async (
     });
 
     const rawText = await 请求模型文本(apiConfig, normalizedApiMessages, {
+        diagnosticTask: 'story',
         temperature: 0.7,
         signal,
         streamOptions,
@@ -1662,6 +1674,7 @@ export const testConnection = async (
     const startedAt = Date.now();
     try {
         const text = await 请求模型文本(apiConfig, messages, {
+            diagnosticTask: 'connection-test',
             temperature: 0,
             errorDetailLimit: Number.POSITIVE_INFINITY
         });

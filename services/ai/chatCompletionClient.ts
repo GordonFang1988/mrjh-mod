@@ -1,5 +1,6 @@
 import type { 当前可用接口结构 } from '../../utils/apiConfig';
-import { getOpenCodeUrl, requestApi } from './apiTransport';
+import { getOpenCodeUrl, requestApi, OPENCODE_PROXY_URL } from './apiTransport';
+import { beginApiDiagnostic, type ApiAttemptObserver, type ApiDiagnosticObserver, type ApiDiagnosticTask } from './apiDiagnostics';
 
 export type 通用消息角色 = 'system' | 'user' | 'assistant';
 
@@ -256,7 +257,7 @@ const 等待可中断 = async (delayMs: number, signal?: AbortSignal): Promise<v
 const 带重试执行 = async <T>(
     label: string,
     fn: () => Promise<T>,
-    options?: { retries?: number; baseDelayMs?: number; signal?: AbortSignal }
+    options?: { retries?: number; baseDelayMs?: number; signal?: AbortSignal; onRetry?: () => void; onRetryWait?: (duration: number) => void }
 ): Promise<T> => {
     const retries = typeof options?.retries === 'number' && options.retries >= 0 ? Math.floor(options.retries) : 2;
     const baseDelayMs = typeof options?.baseDelayMs === 'number' && options.baseDelayMs >= 0
@@ -284,7 +285,10 @@ const 带重试执行 = async <T>(
             const jitter = Math.floor(Math.random() * 250);
             const delay = baseDelayMs * Math.pow(2, attempt) + jitter;
             console.warn(`[AI服务] ${label} 失败，准备重试 (${attempt + 1}/${retries + 1})，${delay}ms`);
-            await 等待可中断(delay, options?.signal);
+            options?.onRetry?.();
+            const waitStarted = performance.now();
+            try { await 等待可中断(delay, options?.signal); }
+            finally { options?.onRetryWait?.(performance.now() - waitStarted); }
         }
     }
 
@@ -401,7 +405,8 @@ const 解析SSE文本 = async (
     response: Response,
     extractDelta: 增量提取器,
     onDelta?: (delta: string, accumulated: string) => void,
-    emptyBodyError = 'Stream body is empty'
+    emptyBodyError = 'Stream body is empty',
+    metric?: ApiAttemptObserver
 ): Promise<string> => {
     if (!response.body) throw new Error(emptyBodyError);
 
@@ -426,6 +431,7 @@ const 解析SSE文本 = async (
 
         try {
             const json = JSON.parse(payload);
+            metric?.payload(json, true);
             emitDelta(extractDelta(json));
             return true;
         } catch {
@@ -492,6 +498,7 @@ const 解析SSE文本 = async (
         while (!doneSignal) {
             const { value, done } = await reader.read();
             if (done) break;
+            if (value?.byteLength) metric?.byte();
             const chunkText = decoder.decode(value, { stream: true });
             rawStreamText += chunkText;
             rawBuffer += chunkText;
@@ -525,6 +532,7 @@ const 解析SSE文本 = async (
     if (!sawSseFrame) {
         const plainPayload = rawStreamText.trim();
         if (plainPayload) {
+            metric?.plain(plainPayload);
             emitDelta(plainPayload);
         }
     }
@@ -593,7 +601,8 @@ const 请求OpenAI家族文本 = async (
     signal?: AbortSignal,
     streamOptions?: 通用流式选项,
     responseFormat?: 响应格式类型,
-    errorDetailLimit?: number
+    errorDetailLimit?: number,
+    telemetry?: ApiDiagnosticObserver
 ): Promise<string> => {
     if (!apiConfig.apiKey) throw new Error('Missing API Key');
     const endpoint = 构建OpenAI端点(apiConfig.baseUrl, apiConfig.供应商, apiConfig.model);
@@ -603,65 +612,95 @@ const 请求OpenAI家族文本 = async (
     let downgradedFromStream = false;
 
     for (let pass = 0; pass < 2; pass++) {
-        const maxOutputTokens = 计算最大输出Token(apiConfig);
-        const body: Record<string, unknown> = {
-            model: apiConfig.model,
-            messages,
-            temperature,
-            stream: useStream,
-            max_tokens: maxOutputTokens
-        };
-        if (responseFormat === 'json_object') {
-            body.response_format = { type: 'json_object' };
-        }
-
-        const response = await requestApi(endpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiConfig.apiKey}`
-            },
-            body: JSON.stringify(body),
-            signal
-        }, { apiProfileId: apiConfig.id });
-
-        if (!response.ok) {
-            const detail = await 读取失败详情文本(response, errorDetailLimit);
-            if (useStream && 响应详情疑似不支持流式(detail) && !downgradedFromStream) {
-                useStream = false;
-                downgradedFromStream = true;
-                continue;
-            }
-            throw new 协议请求错误(`API Error: ${response.status}${detail ? ` - ${detail}` : ''}`, response.status, detail);
-        }
-
-        if (!useStream) {
-            const rawText = await response.text();
-            const json = 解析可能是JSON字符串(rawText);
-            const content = json ? 提取OpenAI完整文本(json) : rawText;
-            const finalText = (typeof content === 'string' ? content : '').trim();
-            非流式回填流式回调(finalText, streamOptions);
-            return finalText;
-        }
-
-        const contentType = (response.headers.get('content-type') || '').toLowerCase();
-        if (!contentType.includes('text/event-stream')) {
-            if (!downgradedFromStream) {
-                useStream = false;
-                downgradedFromStream = true;
-                continue;
-            }
-            throw new 协议请求错误(`API Error: stream unsupported (content-type=${contentType || 'unknown'})`);
-        }
-
+        const metric = telemetry?.attempt(useStream);
         try {
-            return await 解析SSE文本(response, 创建OpenAI流增量提取器(), streamOptions?.onDelta, 'Stream body is empty');
-        } catch (error) {
-            if (!downgradedFromStream && 错误疑似不支持流式(error)) {
-                useStream = false;
-                downgradedFromStream = true;
-                continue;
+            const maxOutputTokens = 计算最大输出Token(apiConfig);
+            const body: Record<string, unknown> = {
+                model: apiConfig.model,
+                messages,
+                temperature,
+                stream: useStream,
+                max_tokens: maxOutputTokens
+            };
+            if (responseFormat === 'json_object') {
+                body.response_format = { type: 'json_object' };
             }
+
+            const response = await requestApi(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiConfig.apiKey}`
+                },
+                body: JSON.stringify(body),
+                signal
+            }, { apiProfileId: apiConfig.id });
+            metric?.headers(response);
+
+            if (!response.ok) {
+                const detail = await 读取失败详情文本(response, errorDetailLimit);
+                if (useStream && 响应详情疑似不支持流式(detail) && !downgradedFromStream) {
+                    metric?.finish('fallback');
+                    telemetry?.fallback();
+                    useStream = false;
+                    downgradedFromStream = true;
+                    continue;
+                }
+                throw new 协议请求错误(`API Error: ${response.status}${detail ? ` - ${detail}` : ''}`, response.status, detail);
+            }
+
+            if (!useStream) {
+                const rawText = await response.text();
+                const json = 解析可能是JSON字符串(rawText);
+                if (json) metric?.payload(json, false);
+                else metric?.plain(rawText);
+                const content = json ? 提取OpenAI完整文本(json) : rawText;
+                const finalText = (typeof content === 'string' ? content : '').trim();
+                非流式回填流式回调(finalText, streamOptions);
+                metric?.finish('success');
+                return finalText;
+            }
+
+            const contentType = (response.headers.get('content-type') || '').toLowerCase();
+            if (!contentType.includes('text/event-stream')) {
+                // Some compatible endpoints ignore stream=true and send a complete JSON
+                // response. Consume that valid reply instead of generating it a second time.
+                const rawText = await response.text();
+                const json = 解析可能是JSON字符串(rawText);
+                if (json && Array.isArray(json.choices)) {
+                    metric?.payload(json, false);
+                    telemetry?.fallback();
+                    const text = 提取OpenAI完整文本(json).trim();
+                    非流式回填流式回调(text, streamOptions);
+                    metric?.finish('success');
+                    return text;
+                }
+                if (!downgradedFromStream) {
+                    metric?.finish('fallback');
+                    telemetry?.fallback();
+                    useStream = false;
+                    downgradedFromStream = true;
+                    continue;
+                }
+                throw new 协议请求错误(`API Error: stream unsupported (content-type=${contentType || 'unknown'})`);
+            }
+
+            try {
+                const text = await 解析SSE文本(response, 创建OpenAI流增量提取器(), streamOptions?.onDelta, 'Stream body is empty', metric);
+                metric?.finish('success');
+                return text;
+            } catch (error) {
+                if (!downgradedFromStream && 错误疑似不支持流式(error)) {
+                    metric?.finish('fallback', error);
+                    telemetry?.fallback();
+                    useStream = false;
+                    downgradedFromStream = true;
+                    continue;
+                }
+                throw error;
+            }
+        } catch (error) {
+            metric?.finish((error as Error)?.name === 'AbortError' ? 'cancelled' : 'error', error);
             throw error;
         }
     }
@@ -678,6 +717,7 @@ export const 请求模型文本 = async (
         streamOptions?: 通用流式选项;
         responseFormat?: 响应格式类型;
         errorDetailLimit?: number;
+        diagnosticTask?: ApiDiagnosticTask;
     }
 ): Promise<string> => {
     const protocol: 请求协议类型 = 是否DeepSeek接口配置(apiConfig) ? 'deepseek' : 'openai';
@@ -694,20 +734,38 @@ export const 请求模型文本 = async (
         protocol
     );
 
-    return 带重试执行(`请求模型文本(${protocol})`, async () => {
-        return 请求OpenAI家族文本(
-            apiConfig,
-            protocol,
-            normalizedMessages,
-            resolvedTemperature,
-            options.signal,
-            options.streamOptions,
-            effectiveResponseFormat,
-            options.errorDetailLimit
-        );
-    }, {
-        signal: options.signal,
-        retries: 2,
-        baseDelayMs: 800
+    const endpoint = 构建OpenAI端点(apiConfig.baseUrl, apiConfig.供应商, apiConfig.model);
+    const telemetry = beginApiDiagnostic({
+        task:options.diagnosticTask,model:apiConfig.model,provider:apiConfig.供应商,endpoint,
+        transportEndpoint:getOpenCodeUrl(endpoint) ? OPENCODE_PROXY_URL : endpoint,
+        proxied:!!getOpenCodeUrl(endpoint),messageCount:normalizedMessages.length,
+        inputChars:normalizedMessages.reduce((count,message)=>count+Array.from(message.content).length,0),
+        maxOutputTokens:计算最大输出Token(apiConfig),requestedStream:options.streamOptions?.stream === true
     });
+    try {
+        const text = await 带重试执行(`请求模型文本(${protocol})`, async () => {
+            return 请求OpenAI家族文本(
+                apiConfig,
+                protocol,
+                normalizedMessages,
+                resolvedTemperature,
+                options.signal,
+                options.streamOptions,
+                effectiveResponseFormat,
+                options.errorDetailLimit,
+                telemetry
+            );
+        }, {
+            signal: options.signal,
+            retries: 2,
+            baseDelayMs: 800,
+            onRetry:telemetry.retry,
+            onRetryWait:telemetry.retryWait
+        });
+        telemetry.finish();
+        return text;
+    } catch (error) {
+        telemetry.finish(error);
+        throw error;
+    }
 };

@@ -173,7 +173,7 @@ try {
  assert.deepEqual(roundtrip.configs,normalized.configs);
  assert.equal(roundtrip.activeConfigId,normalized.activeConfigId);
  for (const getter of [获取当前接口配置,获取变量计算接口配置,获取世界演变接口配置,获取规划分析接口配置,获取文章优化接口配置]) assert.equal(getter(normalized).id,baseConfig.id);
- assert.ok([...values.values()].every(value=>uuid.test(value)));
+ assert.ok([...values.entries()].filter(([key])=>key.startsWith('mrjh-opencode-api-session:v1:')).every(([,value])=>uuid.test(value)));
  console.log('API transport regression passed: exact-host routing, preserved init/Response, profile UUID reload/retries, Go GLM/DeepSeek endpoints, native endpoint preservation, model lists, 401/429/5xx, cancellation, incremental SSE, shared task calls and legacy config roundtrip. No network or real credentials.');
 } finally {
  globalThis.fetch=originalFetch;

@@ -9,6 +9,10 @@ import { readAvgDisplay } from './displayPreferences';
 import { APP_VERSION } from '../../release/version';
 import { buildAvgPresentation, inspectAvgSceneCandidates, inspectAvgSceneBindings, sceneAssetsFromArchive } from './sceneResolver';
 import { buildAvgSceneSourceEvidence, diagnoseAvgSceneDisplay, diagnoseAvgSceneSource, redactAvgDiagnosticText } from './sceneEvidence';
+import { exportApiDiagnostics } from '../ai/apiDiagnostics';
+
+const RECENT_TURN_LIMIT = 10;
+const RECENT_BINDING_LIMIT = 20;
 
 export const buildAvgDiagnostic = async (input: {
     history: 聊天记录结构[]; social: NPC结构[]; environment: 环境信息结构;
@@ -19,6 +23,7 @@ export const buildAvgDiagnostic = async (input: {
     const { history, social, environment, theme, archive } = input;
     const turns = history.filter(turn => turn.role === 'assistant' && turn.structuredResponse);
     const latestTurn = turns.at(-1);
+    const recentTurns = turns.slice(-RECENT_TURN_LIMIT);
     const latest = latestTurn?.structuredResponse;
     const sourceEvidence = buildAvgSceneSourceEvidence(latestTurn);
     const portraits = getAvgPortraitAssets();
@@ -59,7 +64,10 @@ export const buildAvgDiagnostic = async (input: {
     const scenes = await Promise.all((latest?.avgPresentation?.scenes || []).map(describeScene));
     const inspectTurnBinding = (turn: 聊天记录结构 | undefined, scene: AvgResolvedScene | undefined) => {
         const index = turn ? history.indexOf(turn) : -1;
-        return scene ? inspectAvgSceneBindings(index >= 0 ? history.slice(0, index) : [], scene.placeKey, scene.profile, scene.sceneId) : undefined;
+        if (!scene) return undefined;
+        const lookup = inspectAvgSceneBindings(index >= 0 ? history.slice(0, index) : [], scene.placeKey, scene.profile, scene.sceneId);
+        return { ...lookup, knownBindings: lookup.knownBindings.slice(-RECENT_BINDING_LIMIT),
+            knownBindingsTruncated: lookup.knownBindingCount > RECENT_BINDING_LIMIT };
     };
     const latestBindingReuse = inspectTurnBinding(latestTurn, scenes[0]);
     const stage = [...document.querySelectorAll<HTMLElement>('[aria-label="AVG 演出舞台，左右方向键翻页"]')].reverse()
@@ -99,10 +107,14 @@ export const buildAvgDiagnostic = async (input: {
     };
     const catalog = getAvgPackCatalog();
     const report = {
-        schema: 'mrjh-diagnostic-v2', exportedAt: new Date().toISOString(),
+        schema: 'mrjh-diagnostic-v3', exportedAt: new Date().toISOString(),
         app: { version: APP_VERSION, url: `${location.origin}${location.pathname}`, userAgent: navigator.userAgent, viewport: { width: innerWidth, height: innerHeight } },
         theme: theme || 'general', environment, displayPreferences: readAvgDisplay(), currentSettings: { avgEnabled: input.avgEnabled ?? null },
         sceneDiagnosis,
+        apiDiagnostics: exportApiDiagnostics(),
+        historyWindow: { recentTurnLimit: RECENT_TURN_LIMIT, totalAssistantTurns: turns.length,
+            includedAssistantTurns: recentTurns.length, omittedAssistantTurns: Math.max(0, turns.length-recentTurns.length),
+            bindingSummaryLimit: RECENT_BINDING_LIMIT, scope: 'recent-turns-plus-current-playback' },
         resourcePacks, packStorageError, catalog: { scenes: catalog.scenes.length, portraits: catalog.portraits.length },
         latestTurn: { turnNumber: Math.max(0, turns.length - 1), timestamp: latestTurn?.timestamp,
             timelineMode: latest?.avgPresentation?.mode, diagnostic: latest?.avgPresentation?.diagnostic,
@@ -119,11 +131,16 @@ export const buildAvgDiagnostic = async (input: {
                 kind: image.dataset.avgSceneImage ? 'scene' : 'portrait', complete: image.complete,
                 loaded: image.complete && image.naturalWidth > 0, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight,
                 portraitMode: image.dataset.avgPortraitStage, transform: getComputedStyle(image).transform })) } : undefined,
-        recentTurns: history.slice(-20).map(turn => ({ role: turn.role, timestamp: turn.timestamp,
-            logCount: turn.structuredResponse?.logs?.length, presentation: turn.structuredResponse?.avgPresentation,
-            portraitBindings: turn.structuredResponse?.avgPortraitBindings,
+        recentTurns: recentTurns.map((turn,index) => ({ role: turn.role, timestamp: turn.timestamp,
+            turnNumber: turns.length-recentTurns.length+index,
+            logCount: turn.structuredResponse?.logs?.length, presentation: turn.structuredResponse?.avgPresentation ? {
+                ...turn.structuredResponse.avgPresentation,scenes:turn.structuredResponse.avgPresentation.scenes.slice(-20)
+            } : undefined,
+            portraitBindings: Object.fromEntries(Object.entries(turn.structuredResponse?.avgPortraitBindings || {}).slice(-20)),
+            scenesTruncated:(turn.structuredResponse?.avgPresentation?.scenes.length || 0)>20,
+            portraitBindingsTruncated:Object.keys(turn.structuredResponse?.avgPortraitBindings || {}).length>20,
             commandCount: turn.structuredResponse?.tavern_commands?.length })),
-        contents: 'Scene source evidence, request protocol presence, field processing, matching, pack availability and playback. Excludes full prompts, API settings and image bytes.'
+        contents: 'Recent 10 assistant turns, current playback, bounded scene binding summaries and recent 60 text API call metrics. Excludes full history, full prompts, API credentials, full API response bodies and image bytes.'
     };
     // Sanitize free-text labels, malformed snippets, signed image URLs and embedded image data throughout the whitelist.
     return JSON.parse(JSON.stringify(report, (_key, value) => typeof value === 'string' ? redactAvgDiagnosticText(value) : value)) as typeof report;
