@@ -1,4 +1,5 @@
 import type { 开局预设方案结构 } from '../data/newGamePresets';
+import { normalizeAvgTheme } from '../services/avg/identity';
 import { 属性最大值, 属性最小值, 规范化可选开局配置 } from './openingConfig';
 
 export const 自定义开局预设存储键 = 'new_game_custom_start_presets';
@@ -32,6 +33,7 @@ export const 标准化开局预设方案 = (raw: any): 开局预设方案结构 
         名称,
         简介: 标准化文本(raw.简介) || '自定义开局方案',
         worldConfig: {
+            AVG主题: normalizeAvgTheme(raw?.worldConfig?.AVG主题),
             worldName: 标准化文本(raw?.worldConfig?.worldName),
             worldSize: raw?.worldConfig?.worldSize === '弹丸之地' || raw?.worldConfig?.worldSize === '九州宏大' || raw?.worldConfig?.worldSize === '无尽位面'
                 ? raw.worldConfig.worldSize

@@ -9,6 +9,8 @@ import type {
     同人女主剧情规划结构,
     提示词结构
 } from '../../types';
+import type { 游戏设置结构 } from '../../types';
+import { 规范化游戏设置 } from '../../utils/gameSettings';
 import type { 当前可用接口结构 } from '../../utils/apiConfig';
 import { 获取主剧情接口配置, 接口配置是否可用 } from '../../utils/apiConfig';
 import { 执行开场剧情生成工作流 } from './openingStoryWorkflow';
@@ -57,6 +59,7 @@ type 回合快照结构 = {
 type 会话生命周期依赖 = {
     apiConfig: any;
     gameConfig: any;
+    设置游戏设置: (value: 游戏设置结构) => void;
     memoryConfig: any;
     view: 'home' | 'game' | 'new_game';
     prompts: 提示词结构[];
@@ -199,6 +202,7 @@ export const 创建会话生命周期工作流 = (deps: 会话生命周期依赖
             命令基态?: any;
             开局额外要求?: string;
             开局配置?: OpeningConfig;
+            游戏设置?: 游戏设置结构;
         }
     ) => {
         deps.设置开局变量生成进度(null);
@@ -252,7 +256,7 @@ export const 创建会话生命周期工作流 = (deps: 会话生命周期依赖
                 女主剧情规划: deps.女主剧情规划,
                 同人剧情规划: deps.同人剧情规划,
                 同人女主剧情规划: deps.同人女主剧情规划,
-                gameConfig: deps.gameConfig,
+                gameConfig: options?.游戏设置 || deps.gameConfig,
                 memoryConfig: deps.memoryConfig,
                 builtinPromptEntries: deps.内置提示词列表,
                 worldbooks: deps.世界书列表,
@@ -322,6 +326,9 @@ export const 创建会话生命周期工作流 = (deps: 会话生命周期依赖
         deps.设置开局变量生成进度(null);
         deps.设置开局世界演变进度(null);
         deps.设置开局规划进度(null);
+        const openingGameConfig = 规范化游戏设置({ ...deps.gameConfig,
+            AVG主题: worldConfig.AVG主题 ?? (deps.view === 'new_game' ? '' : deps.gameConfig.AVG主题) });
+        deps.设置游戏设置(openingGameConfig);
         return 执行世界生成工作流(
             worldConfig,
             charData,
@@ -332,7 +339,7 @@ export const 创建会话生命周期工作流 = (deps: 会话生命周期依赖
             options,
             {
                 apiConfig: deps.apiConfig,
-                gameConfig: deps.gameConfig,
+                gameConfig: openingGameConfig,
                 prompts: promptPool,
                 view: deps.view,
                 setView: deps.setView,
@@ -367,7 +374,7 @@ export const 创建会话生命周期工作流 = (deps: 会话生命周期依赖
         if (deps.loading || !deps.最近开局配置) return;
         deps.清空重Roll快照();
         deps.重置自动存档状态();
-        const worldConfig = deps.深拷贝(deps.最近开局配置.worldConfig);
+        const worldConfig = { ...deps.深拷贝(deps.最近开局配置.worldConfig), AVG主题: deps.gameConfig.AVG主题 || '' };
         const charData = deps.深拷贝(deps.最近开局配置.charData);
         const openingConfig = deps.深拷贝(deps.最近开局配置.openingConfig);
         const openingStreaming = deps.最近开局配置.openingStreaming;

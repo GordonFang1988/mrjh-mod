@@ -5,6 +5,7 @@ import { 预设天赋, 预设背景 } from '../../../../data/presets';
 import { 开局预设方案结构 } from '../../../../data/newGamePresets';
 import { OrnateBorder } from '../../../ui/decorations/OrnateBorder';
 import InlineSelect from '../../../ui/InlineSelect';
+import AvgThemeSelect, { avgThemeLabel } from '../AvgThemeSelect';
 import * as dbService from '../../../../services/dbService';
 import { 读取小说拆分数据集列表 } from '../../../../services/novelDecompositionStore';
 import { 合并去重开局预设方案, 标准化开局预设方案, 生成自定义开局预设ID, 自定义开局预设存储键 } from '../../../../utils/customNewGamePresets';
@@ -159,6 +160,7 @@ const MobileNewGameWizard: React.FC<Props> = ({ onComplete, onCancel, loading, r
 
     // --- State: World Config ---
     const [worldConfig, setWorldConfig] = useState<WorldGenConfig>({
+        AVG主题: '',
         worldName: '太古界',
         worldSize: '九州宏大',
         dynastySetting: '群雄逐鹿，王朝末年',
@@ -994,6 +996,7 @@ const MobileNewGameWizard: React.FC<Props> = ({ onComplete, onCancel, loading, r
                                 <h3 className="text-xl font-serif font-bold text-wuxia-gold border-b border-wuxia-gold/30 pb-3 mb-6">世界法则设定</h3>
                                 
                                 <div className="space-y-6">
+                                    <AvgThemeSelect value={worldConfig.AVG主题} onChange={AVG主题 => setWorldConfig(prev => ({ ...prev, AVG主题 }))} />
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2">
                                             <label className="text-sm text-wuxia-cyan font-bold">世界名称</label>
@@ -1840,6 +1843,7 @@ const MobileNewGameWizard: React.FC<Props> = ({ onComplete, onCancel, loading, r
                             <OrnateBorder className="max-w-lg w-full p-6">
                                 <div className="text-sm space-y-3 font-mono text-gray-300">
                                     <p>世界: <span className="text-white">{worldConfig.worldName}</span></p>
+                                    <p>美术主题: <span className="text-white">{avgThemeLabel(worldConfig.AVG主题)}</span></p>
                                     <p>难度: <span className="text-white uppercase">{worldConfig.difficulty}</span></p>
                                     <p>世界观额外要求: <span className="text-white">{worldConfig.worldExtraRequirement.trim() || '无'}</span></p>
                                     <p>手动世界观提示词: <span className="text-white">{worldConfig.manualWorldPrompt.trim() ? '已提供' : '未提供'}</span></p>

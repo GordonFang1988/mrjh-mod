@@ -1,10 +1,10 @@
 import type { 聊天记录结构, NPC结构, 场景图片档案, 环境信息结构 } from '../../types';
-import type { AvgResolvedScene } from '../../models/avg';
+import type { AvgPortraitBinding, AvgResolvedScene } from '../../models/avg';
 import { 读取图片资源 } from '../dbService';
 import { 是否图片资源引用 } from '../../utils/imageAssets';
 import { getAvgPackCatalog, getAvgPackImageBlob, isAvgPackImage, listAvgArtPacks, loadAvgPackCatalog } from './packStore';
 import { getAvgPortraitAssets, resolveAvgPortraits } from './portraitResolver';
-import { namedAvgCharacterKey, isAvgBasePortrait } from './identity';
+import { namedAvgCharacterKey, isAvgBasePortrait, normalizeAvgTheme } from './identity';
 import { readAvgDisplay } from './displayPreferences';
 import { APP_VERSION } from '../../release/version';
 import { buildAvgPresentation, inspectAvgSceneCandidates, inspectAvgSceneBindings, sceneAssetsFromArchive } from './sceneResolver';
@@ -37,7 +37,7 @@ export const buildAvgDiagnostic = async (input: {
             .then(blob => blob ? 'local-file-present' : 'local-file-missing').catch(() => 'storage-unavailable'));
         return availabilityCache.get(image)!;
     };
-    const actorReports = await Promise.all(Object.entries(latest?.avgPortraitBindings || {}).map(async ([sender, binding]) => {
+    const describeActor = async (sender: string, binding: AvgPortraitBinding) => {
         const npc = social.find(item => item.id === binding.npcId);
         const key = npc && namedAvgCharacterKey(npc, portraits, theme);
         const current = portraits.find(asset => asset.id === binding.assetId);
@@ -47,12 +47,29 @@ export const buildAvgDiagnostic = async (input: {
             asset: current ? { id: current.id, label: current.label, characterKey: current.characterKey,
                 ageRange: current.ageRange, visualAge: current.visualAge, profile: current.profile } : undefined,
             availability: await assetAvailable(binding.image), expectedCharacterKey: key,
+            otherThemeNamedCandidates: portraits.filter(asset => npc && isAvgBasePortrait(asset) && asset.characterKey
+                && (asset.label === npc.姓名.trim() || asset.aliases?.includes(npc.姓名.trim()))
+                && normalizeAvgTheme(asset.themeId) !== normalizeAvgTheme(theme)).slice(0, 8)
+                .map(asset => ({ id: asset.id, theme: asset.themeId, characterKey: asset.characterKey, ageRange: asset.ageRange })),
             namedCandidates: namedCandidates.map(asset => ({ id: asset.id, label: asset.label, ageRange: asset.ageRange,
                 genderMatches: asset.gender === npc?.性别,
                 ageMatches: Number(npc?.年龄) >= asset.ageRange.min && Number(npc?.年龄) <= asset.ageRange.max })),
             currentResolution: freshlyResolved[sender]
         };
-    }));
+    };
+    const actorReports = await Promise.all(Object.entries(latest?.avgPortraitBindings || {}).map(([sender, binding]) => describeActor(sender, binding)));
+    const recentActors = new Map<string, { sender: string; binding: AvgPortraitBinding }>();
+    for (const turn of recentTurns) {
+        for (const [sender, binding] of Object.entries(turn.structuredResponse?.avgPortraitBindings || {})) {
+            recentActors.delete(binding.npcId);
+            recentActors.set(binding.npcId, { sender, binding });
+        }
+    }
+    const recentActorEntries = [...recentActors.values()].slice(-RECENT_BINDING_LIMIT);
+    const recentResolution = resolveAvgPortraits(recentActorEntries.map(({ sender }) => ({ sender, text: '' })), social, history, portraits, theme);
+    const recentActorReports = await Promise.all(recentActorEntries.map(async ({ sender, binding }) => ({
+        ...await describeActor(sender, binding), currentResolution: recentResolution[sender]
+    })));
     const describeScene = async (scene: AvgResolvedScene) => {
         const asset = sceneAssets.find(asset => asset.id === scene.assetId);
         return { ...scene, availability: await assetAvailable(scene.image),
@@ -116,6 +133,7 @@ export const buildAvgDiagnostic = async (input: {
             includedAssistantTurns: recentTurns.length, omittedAssistantTurns: Math.max(0, turns.length-recentTurns.length),
             bindingSummaryLimit: RECENT_BINDING_LIMIT, scope: 'recent-turns-plus-current-playback' },
         resourcePacks, packStorageError, catalog: { scenes: catalog.scenes.length, portraits: catalog.portraits.length },
+        recentPortraits: recentActorReports, recentPortraitsTruncated: recentActors.size > RECENT_BINDING_LIMIT,
         latestTurn: { turnNumber: Math.max(0, turns.length - 1), timestamp: latestTurn?.timestamp,
             timelineMode: latest?.avgPresentation?.mode, diagnostic: latest?.avgPresentation?.diagnostic,
             sourceDiagnosis: diagnoseAvgSceneSource(sourceEvidence), sourceEvidence,
@@ -140,7 +158,7 @@ export const buildAvgDiagnostic = async (input: {
             scenesTruncated:(turn.structuredResponse?.avgPresentation?.scenes.length || 0)>20,
             portraitBindingsTruncated:Object.keys(turn.structuredResponse?.avgPortraitBindings || {}).length>20,
             commandCount: turn.structuredResponse?.tavern_commands?.length })),
-        contents: 'Recent 10 assistant turns, current playback, bounded scene binding summaries and recent 60 text API call metrics. Excludes full history, full prompts, API credentials, full API response bodies and image bytes.'
+        contents: 'Recent 10 assistant turns, current playback, up to 20 recent portrait identity reports, bounded scene binding summaries and recent 60 text API call metrics. Excludes full history, full prompts, API credentials, full API response bodies and image bytes.'
     };
     // Sanitize free-text labels, malformed snippets, signed image URLs and embedded image data throughout the whitelist.
     return JSON.parse(JSON.stringify(report, (_key, value) => typeof value === 'string' ? redactAvgDiagnosticText(value) : value)) as typeof report;

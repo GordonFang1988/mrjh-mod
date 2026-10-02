@@ -54,6 +54,7 @@ import {
 import { 执行主剧情发送工作流 } from './useGame/sendWorkflow';
 import { avgBindingForAsset, avgSamePersonOptions } from '../services/avg/identity';
 import { getAvgPortraitAssets, resolveAvgPortraits } from '../services/avg/portraitResolver';
+import { recoverMissingAvgArt } from '../services/avg/missingArtRecovery';
 import { ENGINEERING_AVG_SCENES } from '../services/avg/sceneResolver';
 import { 执行正文润色 as 执行正文润色工作流 } from './useGame/bodyPolish';
 import { 构建上下文快照数据 } from './useGame/contextSnapshot';
@@ -2624,6 +2625,7 @@ export const useGame = () => {
     } = 创建会话生命周期工作流({
         apiConfig,
         gameConfig,
+        设置游戏设置: setGameConfig,
         memoryConfig,
         view,
         prompts,
@@ -2923,6 +2925,23 @@ export const useGame = () => {
         应用场景图片档案到状态(nextArchive);
         await performAutoSave({ history: nextHistory, sceneImageArchive: nextArchive, force: true });
     };
+
+    const avgThemeRepairContext = useRef({ history: 历史记录, social: 社交, theme: gameConfig.AVG主题, view, performAutoSave });
+    avgThemeRepairContext.current = { history: 历史记录, social: 社交, theme: gameConfig.AVG主题, view, performAutoSave };
+    useEffect(() => {
+        if (view !== 'game' || !历史记录.length) return;
+        let cancelled = false;
+        void recoverMissingAvgArt(历史记录, 社交, gameConfig.AVG主题, 场景图片档案Ref.current).then(async repaired => {
+            const current = avgThemeRepairContext.current;
+            // A read, restart, new turn or another theme choice invalidates this snapshot.
+            if (cancelled || current.view !== 'game' || current.history !== 历史记录 || current.social !== 社交
+                || current.theme !== gameConfig.AVG主题 || !repaired.repaired) return;
+            设置历史记录(repaired.history);
+            if (repaired.social !== 社交) 设置社交(repaired.social);
+            await current.performAutoSave({ history: repaired.history, social: repaired.social, force: true });
+        }).catch(error => console.error('AVG theme binding repair failed', error));
+        return () => { cancelled = true; };
+    }, [gameConfig.AVG主题]);
 
     return {
         state: gameState,

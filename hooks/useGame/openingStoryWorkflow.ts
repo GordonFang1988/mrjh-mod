@@ -8,6 +8,7 @@ import { captureAvgSceneTrace, snapshotAvgSceneFields } from '../../services/avg
 import type {
     GameResponse,
     OpeningConfig,
+    游戏设置结构,
     TavernCommand,
     提示词结构,
     记忆系统结构,
@@ -89,6 +90,7 @@ type 开场命令基态 = {
 };
 
 type 自动存档快照结构 = {
+    gameConfig?: 游戏设置结构;
     history?: 聊天记录结构[];
     role?: 角色数据结构;
     env?: 环境信息结构;
@@ -1387,6 +1389,7 @@ export const 执行开场剧情生成工作流 = async (
             fandomStoryPlan: openingStateAfterCommands.同人剧情规划,
             fandomHeroinePlan: openingStateAfterCommands.同人女主剧情规划,
             memory: openingMemoryAfterWrite,
+            gameConfig: openingGameConfig,
             openingConfig: options?.开局配置
         });
     } catch (e: any) {

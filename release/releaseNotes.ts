@@ -3,6 +3,18 @@ export interface ReleaseNoteUpdate {
 }
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
+    id: '2026-10-03', date: '2026年10月3日', updates: [{
+        id: '2026-10-03-v1.1.3', time: '00:45', version: 'v1.1.3',
+        title: '校正具名立绘并在开局选择存档美术主题',
+        summary: '开局可选择本局美术主题，切换主题时校正具名人物误绑的通用立绘，补充甘宝宝旧年龄标注兼容。',
+        items: [
+            '电脑和手机开局增加美术主题选择，随存档及自定义开局方案保存；读档恢复本档主题，新局默认通用江湖。',
+            '游戏中切换主题后，确认目标图片可读取再校正具名人物的通用误绑，并自动保存；手动选择、自生成立绘和既有具名形象继续优先。',
+            '甘宝宝基础立绘及两套换装的旧 32–45 岁标注兼容到 30–45 岁，保留钟灵既有 16 岁兼容，无需重导图包或修改人物年龄。',
+            '诊断补充近期最多 20 名人物的年龄、候选和绑定结果，显示被其他主题排除的具名资源，便于定位剩余不匹配。'
+        ]
+    }]
+}, {
     id: '2026-10-02', date: '2026年10月2日', updates: [{
         id: '2026-10-02-v1.1.2', time: '23:55', version: 'v1.1.2',
         title: '修复小说资料省略与规划结果判断',

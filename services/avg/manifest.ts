@@ -14,6 +14,7 @@ const tags = (value: unknown): string[] => Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map(item => item.trim()).slice(0, 16)
     : [];
 const legacyZhongLingPortraitIds = new Set(['TF005', 'TV009', 'TV010']);
+const legacyGanBaobaoPortraitIds = new Set(['TF009', 'TV017', 'TV018']);
 
 /** Metadata is the only matching source. ZIP packs provide their own image references. */
 export const parseAvgManifest = (raw: unknown, imageForFile: (file: string, id: string) => string =
@@ -88,7 +89,14 @@ export const parseAvgManifest = (raw: unknown, imageForFile: (file: string, id: 
             && item.characterKey === 'tianlong:zhong-ling' && item.gender === '女'
             && normalizeAvgTheme(item.themeId || source.themeId) === 'tianlong'
             && ageMin === 18 && ageMax === 23;
+        // The same approved Gan Baobao portraits cover the saved 30-year-old character.
+        // Calibrate only these known legacy records, never arbitrary age ranges.
+        const legacyGanBaobao = legacyGanBaobaoPortraitIds.has(common.id)
+            && item.characterKey === 'tianlong:gan-baobao' && item.gender === '女'
+            && normalizeAvgTheme(item.themeId || source.themeId) === 'tianlong'
+            && ageMin === 32 && ageMax === 45;
         const calibratedAgeMin = legacyZhongLing ? 16
+            : legacyGanBaobao ? 30
             : item.characterKey === 'shuihu_jinpingmei:wu-da-lang' && Number(ageMin) === 35 ? 30 : Number(ageMin);
         result.portraits.push({ id: common.id, image: common.image, version: common.version, legacyAssetIds: legacyIds(common.item.legacyAssetIds),
             gender: item.gender,

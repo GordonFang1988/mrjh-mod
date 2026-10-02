@@ -52,7 +52,7 @@ if(process.argv[2]) {
   if(raw.characterKey==='shuihu_jinpingmei:wu-da-lang')return false;
   return a.ageRange.min!==raw.ageRange.min||a.ageRange.max!==raw.ageRange.max;
  }).map(a=>a.id);
- assert.deepEqual(changed.sort(),ids);
+ assert.deepEqual(changed.sort(),[...ids,'TF009','TV017','TV018'].sort());
  assert.equal(pack.scenes.length,2230);
  assert.equal(pack.portraits.length,4676);
  assert.equal(JSON.stringify(manifest),original);

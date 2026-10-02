@@ -422,6 +422,7 @@ export interface OpeningConfig {
 }
 
 export interface WorldGenConfig {
+    AVG主题?: string; // Opening art choice, copied to this save's game settings before generation.
     worldName: string;
     worldSize: '弹丸之地' | '九州宏大' | '无尽位面';
     dynastySetting: string;

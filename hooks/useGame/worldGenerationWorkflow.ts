@@ -1,6 +1,6 @@
 import * as textAIService from '../../services/ai/text';
 import * as dbService from '../../services/dbService';
-import type { OpeningConfig, WorldGenConfig, 角色数据结构, 提示词结构, 聊天记录结构 } from '../../types';
+import type { OpeningConfig, WorldGenConfig, 游戏设置结构, 角色数据结构, 提示词结构, 聊天记录结构 } from '../../types';
 import type { 当前可用接口结构 } from '../../utils/apiConfig';
 import { 获取主剧情接口配置, 接口配置是否可用 } from '../../utils/apiConfig';
 import { 构建世界观种子提示词, 构建世界生成任务上下文提示词 } from '../../prompts/runtime/worldSetup';
@@ -38,7 +38,7 @@ type 世界生成工作流依赖 = {
         promptSnapshot: 提示词结构[],
         useStreaming: boolean,
         apiForOpening: 当前可用接口结构,
-        options?: { 命令基态?: any; 开局额外要求?: string; 开局配置?: OpeningConfig }
+        options?: { 命令基态?: any; 开局额外要求?: string; 开局配置?: OpeningConfig; 游戏设置?: 游戏设置结构 }
     ) => Promise<void>;
     追加系统消息: (message: string) => void;
     替换流式草稿为失败提示: (history: 聊天记录结构[], errorMessage: string) => 聊天记录结构[];
@@ -429,7 +429,8 @@ export const 执行世界生成工作流 = async (
             {
                 命令基态: deps.创建开场命令基态(openingBase.角色),
                 开局额外要求: normalizedOpeningExtraPrompt,
-                开局配置: openingConfig
+                开局配置: openingConfig,
+                游戏设置: normalizedGameConfig
             }
         );
         deps.setLoading(false);

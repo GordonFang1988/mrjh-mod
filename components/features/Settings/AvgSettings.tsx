@@ -117,7 +117,7 @@ const AvgSettings: React.FC<{ settings: 游戏设置结构; onSave: (settings: �
                                 <option key={id} value={id}>{id === 'tianlong' ? '天龙八部' : id === 'shuihu-jinpingmei' ? '水浒传与金瓶梅' : id}</option>)}
                         </select>
                     </label>
-                    <p className="mb-3 text-gray-400">优先使用所选故事的人物资源，缺少时使用通用库。已绑定人物保留原形象。</p>
+                    <p className="mb-3 text-gray-400">主题随本存档保存。切换后会校正误用通用立绘的具名人物；手动选择、自生成立绘和已确认的具名形象保留。</p>
                     <div className="flex flex-wrap items-center gap-3">
                         <label className="cursor-pointer rounded border border-wuxia-gold/50 px-3 py-2 text-wuxia-gold">
                             导入 AVG 美术 ZIP
