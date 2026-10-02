@@ -1212,8 +1212,15 @@ const 解析标签协议响应 = (content: string): GameResponse | null => {
     const commandBlock = 提取首个标签内容(textWithoutThinking, '命令') || titleSections.命令 || '';
     const actionOptionsBlock = 提取首个标签内容(textWithoutThinking, '行动选项') || titleSections.行动选项 || '';
     const dynamicWorldBlock = 提取首个标签内容(textWithoutThinking, '动态世界') || titleSections.动态世界 || '';
-    const avgSceneBlock = 提取首个标签内容(textWithoutThinking, '演出场景');
-    const avgSceneJson = avgSceneBlock ? parseJsonWithRepair<unknown>(avgSceneBlock).value : undefined;
+    // Models may emit one block per camera. Combine raw entries before normalization
+    // so duplicate refs across blocks remain ambiguous instead of silently winning.
+    const avgSceneEntries = 提取标签内容列表(textWithoutThinking, '演出场景').flatMap(block => {
+        const value = parseJsonWithRepair<unknown>(block).value;
+        if (Array.isArray(value)) return value;
+        if (!value || typeof value !== 'object') return [];
+        const scenes = (value as Record<string, unknown>).场景;
+        return Array.isArray(scenes) ? scenes : [];
+    });
     const bodyWithoutMalformedMetadata = (bodyBlock || '').replace(
         /<\s*(剧情规划|变量规划|短期记忆|命令|行动选项|动态世界|演出场景)(?=\s)[^>]*\/\s*>/gi, '\n');
     const bodyJudgeExtraction = 提取正文中的Judge区块(bodyWithoutMalformedMetadata);
@@ -1263,7 +1270,7 @@ const 解析标签协议响应 = (content: string): GameResponse | null => {
         t_plan: storyPlanBlock || undefined,
         t_var_plan: variablePlanBlock || undefined,
         logs,
-        avgSceneHints: normalizeAvgHints(avgSceneJson),
+        avgSceneHints: normalizeAvgHints(avgSceneEntries),
         tavern_commands: commands.length > 0 ? commands : undefined,
         shortTerm: shortTerm || undefined,
         action_options: actionOptions.length > 0 ? actionOptions : undefined,

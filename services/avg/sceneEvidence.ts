@@ -122,6 +122,9 @@ export const buildAvgSceneSourceEvidence = (turn?: 聊天记录结构) => {
 
 export const diagnoseAvgSceneSource = (evidence: ReturnType<typeof buildAvgSceneSourceEvidence>) => {
     const result = (code: string, summary: string, confirmed: boolean) => ({ code, summary, confirmed });
+    const omittedRefs = (evidence.reparsed?.hintRefs || []).filter(ref => !evidence.stored.hintRefs.includes(ref));
+    if (evidence.stored.hintCount > 0 && omittedRefs.length)
+        return result('scene-fields-partially-retained', `原始回复包含场景 ${omittedRefs.join('、')}，当前回合只保留了部分场景字段；重新读档可尝试恢复。`, true);
     if (evidence.stored.hintCount > 0) return result('scene-fields-present', '本回合已保存结构化场景字段或已有场景引用。', true);
     if ((evidence.processing?.parsed?.hintCount || 0) > 0 || (evidence.processing?.afterPolish?.hintCount || 0) > 0
         || (evidence.processing?.afterVariableGeneration?.hintCount || 0) > 0) {

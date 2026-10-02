@@ -7,6 +7,7 @@ import { buildAvgPresentation, resolveAvgSceneAsset, sceneAssetsFromArchive } fr
 import { avgLocationFallback } from './sceneFallback';
 import { avgUnspecifiedField } from './sceneCompatibility';
 import { normalizeAvgSceneLogs } from './sceneProtocol';
+import { parseStoryRawText } from '../ai/storyResponseParser';
 import type { 场景图片档案 } from '../../models/imageGeneration';
 
 const localId = (id?: string): string | undefined => id?.slice(id.lastIndexOf(':') + 1);
@@ -67,26 +68,36 @@ export const restoreStructuredAvgScenes = (
     return JSON.stringify(restored) === JSON.stringify(presentation) ? presentation : restored;
 };
 
-/** Restore camera boundaries from saved protocol tokens, never from story semantics. */
+/** Restore saved camera boundaries and omitted raw scene fields without replaying the turn. */
 export const restoreAvgSceneProtocol = (
-    response: GameResponse, history: 聊天记录结构[], assets: AvgSceneAsset[], theme?: string
+    response: GameResponse, history: 聊天记录结构[], assets: AvgSceneAsset[], theme?: string, rawJson?: string
 ): GameResponse => {
     const saved = response.avgPresentation;
     // A manually selected final backdrop has no per-camera mapping to migrate.
     if (saved?.mode === 'final' && saved.scenes.some(scene => scene.reason.startsWith('manual-'))) return response;
     const logs = normalizeAvgSceneLogs(response.logs || []);
-    if (logs === response.logs) return response;
-    const refs = (response.avgSceneHints || []).map(hint => hint.ref);
+    let hints = response.avgSceneHints;
+    const savedRefs = new Set((hints || []).map(hint => hint.ref));
+    const missingRefs = new Set(logs.flatMap(log => log.avgSceneRef && !savedRefs.has(log.avgSceneRef) ? [log.avgSceneRef] : []));
+    if (missingRefs.size && rawJson) {
+        try {
+            const rawHints = parseStoryRawText(rawJson, { enableTagRepair: true, validateTagCompleteness: false }).avgSceneHints || [];
+            const additions = rawHints.filter(hint => missingRefs.has(hint.ref));
+            if (additions.length) hints = [...(hints || []), ...additions];
+        } catch { /* Old turns without readable raw protocol remain unchanged. */ }
+    }
+    if (logs === response.logs && hints === response.avgSceneHints) return response;
+    const refs = (hints || []).map(hint => hint.ref);
     const validRefs = new Set(refs.filter(ref => refs.indexOf(ref) === refs.lastIndexOf(ref)));
     const marked = logs.filter(log => !!log.avgSceneRef);
     if (!marked.length || marked.some(log => !validRefs.has(log.avgSceneRef!))) return response;
-    const restored = buildAvgPresentation(logs, response.avgSceneHints, {} as any, history, assets, {}, theme);
+    const restored = buildAvgPresentation(logs, hints, {} as any, history, assets, {}, theme);
     if (restored.diagnostic === 'conflicting-scene-identity') return response;
     restored.scenes = restored.scenes.map(scene => {
         const previous = saved?.scenes.find(item => item.ref === scene.ref);
         return previous && (previous.assetId || previous.image || previous.reason.startsWith('manual-')) ? previous : scene;
     });
-    return { ...response, logs, avgPresentation: restored };
+    return { ...response, logs, avgSceneHints: hints, avgPresentation: restored };
 };
 
 /** Upgrade only an unclassified, broad automatic guess outside a precise art family. */
@@ -125,7 +136,7 @@ export const recoverMissingAvgArt = async (
         let response = turn.structuredResponse;
         if (!response) { repairedHistory.push(turn); continue; }
         let changed = false;
-        const protocol = restoreAvgSceneProtocol(response, repairedHistory, sceneAssets, theme);
+        const protocol = restoreAvgSceneProtocol(response, repairedHistory, sceneAssets, theme, turn.rawJson);
         if (protocol !== response) {
             const images = protocol.avgPresentation?.scenes.filter(scene => scene.reason !== 'manual-neutral') || [];
             if (images.length && (await Promise.all(images.map(scene => imageAvailable(scene.image)))).every(Boolean)) {

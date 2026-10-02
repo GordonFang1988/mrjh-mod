@@ -4,6 +4,15 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-02', date: '2026年10月2日', updates: [{
+        id: '2026-10-02-v1.0.13', time: '13:48', version: 'v1.0.13',
+        title: '修复多份场景表只读取第一份的问题',
+        summary: '完整读取模型分块返回的场景分类，恢复后续镜头的背景，并支持旧存档补回遗漏场景。',
+        items: [
+            '合并本回合全部演出场景块，再统一校验镜头引用；重复或冲突引用不会被任意覆盖。',
+            '读档从保存的原始回复补回遗漏的场景字段，确认图片可读取后恢复；保留正文、命令、已有背景及手工选择。',
+            '诊断明确区分部分场景字段丢失与模型没有返回场景，方便准确定位问题。'
+        ]
+    }, {
         id: '2026-10-02-v1.0.12', time: '12:02', version: 'v1.0.12',
         title: '修复镜头格式偏差导致的整回合空白',
         summary: '统一镜头标记的容错解析，恢复混入正文的转场信息，并支持修复已保存的空白回合。',
