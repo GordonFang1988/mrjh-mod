@@ -4,6 +4,16 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-02', date: '2026年10月2日', updates: [{
+        id: '2026-10-02-v1.0.11', time: '09:21', version: 'v1.0.11',
+        title: '修复山中石室误选水井背景',
+        summary: '缺少场景分类时，山中石室优先从岩洞与石室素材查找，洞口和洞内分开匹配。',
+        items: [
+            '补充山洞、岩洞、洞府、洞厅及山中石室的素材搜索，具体房间优先于前缀地点；模型原始分类保持不变。',
+            '读档可修正此前无分类、在全图库近似匹配而误选的背景，只在对应本地素材可读取时更新；已有同类背景与手工选择继续保留。',
+            '诊断补充素材名称、搜索空间范围和原误选素材 ID，无需额外剧情请求或生成图片。',
+            '使用玩家诊断、完整 2230 张场景图库与实际 AVG 验证，17 段播放、重播和再次读档保持稳定。'
+        ]
+    }, {
         id: '2026-10-02-v1.0.10', time: '01:46', version: 'v1.0.10',
         title: '辅助功能复用已保存的 API 档案',
         summary: '一次保存地址、密钥与接口类型，世界演变、变量生成、规划分析等功能即可选择复用。',

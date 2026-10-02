@@ -9,20 +9,37 @@ const roomAliases: ReadonlyArray<readonly [string, string]> = [
     ['卧房', '民居卧室'], ['卧室', '民居卧室'], ['客房', '客栈客房'], ['寝室', '弟子寝舍'],
     ['后院', '院落'], ['前院', '院落'], ['小院', '院落'], ['庭院', '院落']
 ];
+const caveSpaces = ['洞内', '静修洞穴', '石窟', '闭关石室'];
+const caveAliases: ReadonlyArray<readonly [string, string]> = [
+    ...['山洞', '岩洞', '洞穴', '洞府', '洞厅', '洞室', '溶洞', '熔洞', '岩穴', '洞隙']
+        .map(term => [term, '洞内'] as const),
+    ['洞外', '洞口'], ['洞前', '洞口']
+];
 
 export const avgLocationFallback = (profile: AvgSceneProfile, placeKey?: string, contextRegion?: string) => {
     if (!avgUnspecifiedField(profile.空间) || !placeKey || placeKey.startsWith('transient:')) return undefined;
     const parts = placeKey.split('/');
     const room = parts[3]?.trim();
     if (!room) return undefined;
+    // A bare stone chamber is ambiguous. Only its declared mountain/rock venue
+    // supplies a cave-art search context; well rooms and cellars remain distinct.
+    const mountain = !/井室|地窖|货窖|墓室/.test(room)
+        && !/衙门|客栈|府邸|宅院|祠堂|地窖|井室/.test(parts[2] || '')
+        ? [parts[2], parts[1]].filter(Boolean).join(' ').match(/山|崖|谷|峰|岭|岩|洞|窟/)?.[0] : undefined;
+    const entrance = room.match(/(?:山洞|岩洞|洞穴|洞府|溶洞|熔洞)(?:口|外|前|入口)/)?.[0];
     const terms: ReadonlyArray<readonly [string, string]> = [
         ...AVG_SCENE_SPACES.filter(space => !avgUnspecifiedField(space)).map(space => [space, space] as const),
-        ...roomAliases
+        ...roomAliases, ...caveAliases,
+        ...(entrance ? [[entrance, '洞口'] as const] : []),
+        ...(mountain ? [['石室', '闭关石室'] as const] : [])
     ];
     // Prefer the most specific room term; the end of "后院柴房" identifies the room.
     const matches = terms.filter(([term]) => room.includes(term)).sort((a, b) =>
-        b[0].length - a[0].length || room.lastIndexOf(b[0]) - room.lastIndexOf(a[0]));
-    const match = matches[0];
+        (room.lastIndexOf(b[0]) + b[0].length) - (room.lastIndexOf(a[0]) + a[0].length) || b[0].length - a[0].length);
+    let match = matches[0];
+    if (mountain && match?.[1] === '地下石室') match = [match[0], '闭关石室'];
+    const preferredSpaces = match && caveSpaces.includes(match[1]) ? caveSpaces
+        : match?.[1] === '洞口' ? ['洞口'] : undefined;
     const venue = parts[2] || '';
     const venueFunction = AVG_VENUE_FUNCTION.filter(value => !avgUnspecifiedField(value) && venue.includes(value))
         .sort((a, b) => b.length - a.length)[0];
@@ -32,6 +49,8 @@ export const avgLocationFallback = (profile: AvgSceneProfile, placeKey?: string,
     if (region) matchingProfile.地域 = region;
     return { source: 'location' as const, term: match?.[0] || room, matchingProfile,
         tier: match ? 'space' as const : 'nearest-catalog' as const,
+        ...(preferredSpaces ? { preferredSpaces: [...preferredSpaces] } : {}),
+        ...(match && ['石室', '地下石室'].includes(match[0]) && mountain ? { contextTerm: mountain } : {}),
         ...(region ? { contextRegion: region } : {}) };
 };
 

@@ -58,7 +58,9 @@ export interface AvgResolvedScene {
     reason: string;
     /** Approximate art search evidence; profile remains the original model data. */
     fallback?: { source: 'location'; term: string; matchingProfile: AvgSceneProfile;
-        tier?: 'space' | 'nearest-catalog'; contextRegion?: string };
+        tier?: 'space' | 'nearest-catalog'; contextRegion?: string;
+        /** Resource search scope only, never a replacement for model classification. */
+        preferredSpaces?: string[]; contextTerm?: string; replacedAssetId?: string };
 }
 
 export interface AvgPresentation {

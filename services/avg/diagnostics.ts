@@ -52,7 +52,7 @@ export const buildAvgDiagnostic = async (input: {
         const asset = sceneAssets.find(asset => asset.id === scene.assetId);
         return { ...scene, availability: await assetAvailable(scene.image),
             selectedAssetInCatalog: !!asset,
-            selectedAsset: asset ? { id: asset.id, version: asset.version, profile: asset.profile,
+            selectedAsset: asset ? { id: asset.id, label: asset.label, version: asset.version, profile: asset.profile,
                 themeId: asset.themeId, styleFamily: asset.styleFamily } : undefined,
             matching: inspectAvgSceneCandidates(scene.profile, sceneAssets, theme, scene.placeKey, scene.fallback?.contextRegion) };
     };

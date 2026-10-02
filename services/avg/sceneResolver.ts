@@ -81,7 +81,8 @@ const sceneCandidatePool = (requested: AvgSceneProfile, assets: AvgSceneAsset[],
     const directFunction = (asset: AvgSceneAsset) => avgUnspecifiedField(functionProfile.场所功能) || avgUnspecifiedField(asset.profile.场所功能)
         || functionProfile.场所功能 === asset.profile.场所功能;
     const relatedFunction = (asset: AvgSceneAsset) => avgRelatedSceneFunctions(profile.空间, functionProfile.场所功能, asset.profile.空间, asset.profile.场所功能);
-    const alternatives = avgCompatibleSpaces(profile.空间);
+    const alternatives = fallback?.preferredSpaces
+        ? fallback.preferredSpaces.filter(space => space !== profile.空间) : avgCompatibleSpaces(profile.空间);
     const broad = !!fallback && avgUnspecifiedField(profile.空间);
     const matchesSpace = (asset: AvgSceneAsset) => broad || asset.profile.空间 === profile.空间
         || alternatives.includes(asset.profile.空间);
@@ -144,14 +145,14 @@ export const inspectAvgSceneCandidates = (profile: AvgSceneProfile, assets: AvgS
     const { pool, counts, selection, failureStage, spacesBefore, spacesAfterInstitution, fallback, candidateScore } = sceneCandidatePool(profile, assets, undefined, theme, placeKey, contextRegion);
     const rejected = failureStage === 'institution' ? spacesBefore : failureStage === 'function' ? spacesAfterInstitution : [];
     return { counts, selection, fallback, candidateIds: pool.slice(0, 12).map(asset => asset.id), candidatesTruncated: pool.length > 12,
-        candidates: pool.slice(0, 12).map(asset => ({ id: asset.id, profile: asset.profile,
+        candidates: pool.slice(0, 12).map(asset => ({ id: asset.id, label: asset.label, profile: asset.profile,
             profileScore: score(profile, asset.profile), matchScore: candidateScore(asset), themeId: asset.themeId, styleFamily: asset.styleFamily })),
         failure: failureStage ? { stage: failureStage, requested: profile,
             rejectedCandidates: rejected.slice(0, 12).map(asset => ({ id: asset.id, profile: asset.profile })),
             rejectedCandidatesTruncated: rejected.length > 12 } : null };
 };
 
-const resolveAsset = (profile: AvgSceneProfile, placeKey: string, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string, contextRegion?: string) => {
+export const resolveAvgSceneAsset = (profile: AvgSceneProfile, placeKey: string, assets: AvgSceneAsset[], preferredStyle?: string, theme?: string, contextRegion?: string) => {
     const { pool, fallback } = sceneCandidatePool(profile, assets, preferredStyle, theme, placeKey, contextRegion);
     if (pool.length === 0) return { asset: undefined, fallback: undefined };
     const ties = [...pool].sort((a, b) => a.id.localeCompare(b.id));
@@ -227,7 +228,7 @@ export const buildAvgPresentation = (
             && !avgUnspecifiedField(scene.profile.地域)).map(scene => scene.profile.地域!));
         const contextRegion = regions.size === 1 ? [...regions][0] : undefined;
         const resolved = !overrideId && !binding && !lookup.conflict
-            ? resolveAsset(profile, placeKey, assets, venueStyles.get(placeKey.split('/').slice(0, 3).join('/')), theme, contextRegion)
+            ? resolveAvgSceneAsset(profile, placeKey, assets, venueStyles.get(placeKey.split('/').slice(0, 3).join('/')), theme, contextRegion)
             : undefined;
         const asset = overrideId
             ? assets.find(candidate => candidate.id === overrideId)

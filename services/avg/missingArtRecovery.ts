@@ -1,9 +1,11 @@
 import type { GameResponse, NPC结构, 聊天记录结构 } from '../../types';
-import type { AvgPortraitAsset, AvgPortraitBinding, AvgSceneAsset } from '../../models/avg';
+import type { AvgPortraitAsset, AvgPortraitBinding, AvgResolvedScene, AvgSceneAsset } from '../../models/avg';
 import { avgBindingForAsset, avgSamePersonOptions, isAvgBasePortrait } from './identity';
 import { findUniqueLegacyAvgAsset, getAvgPackImageBlob, isAvgPackImage, loadAvgPackCatalog } from './packStore';
 import { getAvgPortraitAssets, resolveAvgPortraits } from './portraitResolver';
-import { buildAvgPresentation, sceneAssetsFromArchive } from './sceneResolver';
+import { buildAvgPresentation, resolveAvgSceneAsset, sceneAssetsFromArchive } from './sceneResolver';
+import { avgLocationFallback } from './sceneFallback';
+import { avgUnspecifiedField } from './sceneCompatibility';
 import type { 场景图片档案 } from '../../models/imageGeneration';
 
 const localId = (id?: string): string | undefined => id?.slice(id.lastIndexOf(':') + 1);
@@ -64,6 +66,21 @@ export const restoreStructuredAvgScenes = (
     return JSON.stringify(restored) === JSON.stringify(presentation) ? presentation : restored;
 };
 
+/** Upgrade only an unclassified, broad automatic guess outside a precise art family. */
+export const replacementForWeakLocationFallback = (scene: AvgResolvedScene, assets: AvgSceneAsset[], theme?: string): AvgResolvedScene | undefined => {
+    if (!['location-fallback', 'existing-binding'].includes(scene.reason)
+        || scene.fallback?.source !== 'location' || scene.fallback.tier !== 'nearest-catalog'
+        || !avgUnspecifiedField(scene.profile.空间) || !isAvgPackImage(scene.image)) return undefined;
+    const evidence = avgLocationFallback(scene.profile, scene.placeKey, scene.fallback.contextRegion);
+    if (!evidence?.preferredSpaces) return undefined;
+    const old = assets.find(asset => asset.id === scene.assetId && asset.version === scene.version && asset.image === scene.image);
+    if (!old || evidence.preferredSpaces.includes(old.profile.空间)) return undefined;
+    const {asset:selected,fallback} = resolveAvgSceneAsset(scene.profile, scene.placeKey, assets, undefined, theme, scene.fallback.contextRegion);
+    if (!selected || !isAvgPackImage(selected.image) || !evidence.preferredSpaces.includes(selected.profile.空间)) return undefined;
+    return {...scene,assetId:selected.id,image:selected.image,version:selected.version,reason:'location-fallback',
+        fallback:fallback ? {...fallback,replacedAssetId:scene.assetId} : undefined};
+};
+
 export const recoverMissingAvgArt = async (
     history: 聊天记录结构[], social: NPC结构[], theme?: string, archive?: 场景图片档案
 ): Promise<{history: 聊天记录结构[]; social: NPC结构[]; repaired: number}> => {
@@ -118,6 +135,10 @@ export const recoverMissingAvgArt = async (
         if (presentation) {
             const scenes = [];
             for (const scene of presentation.scenes) {
+                const better = replacementForWeakLocationFallback(scene, sceneAssets, theme);
+                if (better && await imageAvailable(better.image)) {
+                    scenes.push(better); changed = true; repaired += 1; continue;
+                }
                 const recoverNeutral = !scene.assetId && !scene.image && scene.reason === 'neutral-background';
                 if (!recoverNeutral && !await imageMissing(scene.image)) { scenes.push(scene); continue; }
                 const exact = findUniqueLegacyAvgAsset(scene.assetId, sceneAssets);
