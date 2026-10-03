@@ -4,6 +4,16 @@ export interface ReleaseNoteUpdate {
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
     id: '2026-10-03', date: '2026年10月3日', updates: [{
+        id: '2026-10-03-v1.1.4', time: '17:16', version: 'v1.1.4',
+        title: '修复女主规划、约定与世界事件更新',
+        summary: '修复输入节选后的新增误拦截，补回世界线索传递，明确约定登记规则，并记录辅助任务实际写回数量。',
+        items: [
+            '旧人物事实或世界事件被节选时，允许新增独立条目；保留重复检查、原始索引和条件保护。同人规划使用本局对应的写入路径。',
+            '规划分析结合本回合玩家行为核对已发生的人物关系和新事实，不再只关注阶段切换；保持既有输入预算。',
+            '主剧情分流出的世界变化线索传给世界模型复核；约定列表不再只发送前 30 条，双方已订立、未来履行的约定登记为等待中。',
+            '世界与变量接口仅返回思考、空回答或截断结果时提示失败；近期诊断增加女主和约定命令的解析、接受及应用数量。'
+        ]
+    }, {
         id: '2026-10-03-v1.1.3', time: '00:45', version: 'v1.1.3',
         title: '校正具名立绘并在开局选择存档美术主题',
         summary: '开局可选择本局美术主题，切换主题时校正具名人物误绑的通用立绘，补充甘宝宝旧年龄标注兼容。',

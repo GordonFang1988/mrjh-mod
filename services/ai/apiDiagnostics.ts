@@ -10,6 +10,8 @@ export type AuxiliaryResultMetric = {
     status: 'invalid-output' | 'no-update' | 'filtered' | 'ready' | 'applied';
     reason?: 'reasoning-only' | 'empty-output' | 'invalid-format' | 'state-guard' | 'not-needed';
     parsedCommands?: number; acceptedCommands?: number; appliedCommands?: number;
+    parsedHeroineCommands?: number; acceptedHeroineCommands?: number; appliedHeroineCommands?: number;
+    parsedAgreementCommands?: number; acceptedAgreementCommands?: number; appliedAgreementCommands?: number;
 };
 export type ApiAttemptMetric = {
     number: number; requestedStream: boolean; actualStream?: boolean; startedAt: number; durationMs?: number;
@@ -40,7 +42,13 @@ const safeResult = (value: any): AuxiliaryResultMetric | undefined => {
     return {status: value.status,
         reason: ['reasoning-only','empty-output','invalid-format','state-guard','not-needed'].includes(value.reason) ? value.reason : undefined,
         parsedCommands: numeric(value.parsedCommands), acceptedCommands: numeric(value.acceptedCommands),
-        appliedCommands: numeric(value.appliedCommands)};
+        appliedCommands: numeric(value.appliedCommands),
+        parsedHeroineCommands: numeric(value.parsedHeroineCommands),
+        acceptedHeroineCommands: numeric(value.acceptedHeroineCommands),
+        appliedHeroineCommands: numeric(value.appliedHeroineCommands),
+        parsedAgreementCommands: numeric(value.parsedAgreementCommands),
+        acceptedAgreementCommands: numeric(value.acceptedAgreementCommands),
+        appliedAgreementCommands: numeric(value.appliedAgreementCommands)};
 };
 const sectionNames = ['rules','identity','schema','analysis','extra','world','social','story','heroine','environment','body','history','memory','plan','commands','hints','lore','recall','query','trigger','novel','worldbook'];
 const safeBreakdown = (value: any): AuxiliaryInputMetric | undefined => {
@@ -121,7 +129,13 @@ export const recordAuxiliaryResult = (id: string | undefined, result: AuxiliaryR
         if (clean) record.result = {...clean,
             parsedCommands: clean.parsedCommands ?? record.result?.parsedCommands,
             acceptedCommands: clean.acceptedCommands ?? record.result?.acceptedCommands,
-            appliedCommands: clean.appliedCommands ?? record.result?.appliedCommands};
+            appliedCommands: clean.appliedCommands ?? record.result?.appliedCommands,
+            parsedHeroineCommands: clean.parsedHeroineCommands ?? record.result?.parsedHeroineCommands,
+            acceptedHeroineCommands: clean.acceptedHeroineCommands ?? record.result?.acceptedHeroineCommands,
+            appliedHeroineCommands: clean.appliedHeroineCommands ?? record.result?.appliedHeroineCommands,
+            parsedAgreementCommands: clean.parsedAgreementCommands ?? record.result?.parsedAgreementCommands,
+            acceptedAgreementCommands: clean.acceptedAgreementCommands ?? record.result?.acceptedAgreementCommands,
+            appliedAgreementCommands: clean.appliedAgreementCommands ?? record.result?.appliedAgreementCommands};
         persist();
     }
 };

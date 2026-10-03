@@ -77,12 +77,14 @@ export interface StoryResponseResult {
 }
 
 export interface WorldEvolutionResult {
+    diagnosticId?: string;
     commands: TavernCommand[];
     updates: string[];
     rawText: string;
 }
 
 export interface VariableCalibrationResult {
+    diagnosticId?: string;
     commands: TavernCommand[];
     reports: string[];
     rawText: string;
@@ -680,6 +682,8 @@ export const generateWorldEvolutionUpdate = async (
     })), [...(contextInfo?.metrics || []), {name: 'extra', sourceChars: countChars(extraPrompt || ''), sentChars: countChars(normalizedExtraPrompt)}]);
     const messages = 规范化文本补全消息链(packed.messages, { 保留System: true, 合并同角色: false });
 
+    let diagnosticId: string | undefined;
+    let onlyNativeReasoning = false;
     const rawText = await 请求模型文本(auxiliaryOutputConfig(apiConfig, 'world-evolution'), messages, {
         temperature: 0.4,
         diagnosticTask: 'world-evolution',
@@ -687,12 +691,22 @@ export const generateWorldEvolutionUpdate = async (
         rejectTruncated: true,
         streamOptions: { stream: true },
         signal,
-        errorDetailLimit: Number.POSITIVE_INFINITY
+        errorDetailLimit: Number.POSITIVE_INFINITY,
+        onDiagnosticCall: id => { diagnosticId = id; },
+        onResponseChannels: counts => { onlyNativeReasoning = counts.reasoningChars > 0 && counts.contentChars === 0; }
     });
+    if (onlyNativeReasoning || !rawText.replace(/<\s*(think|thinking)\s*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '').trim()) {
+        recordAuxiliaryResult(diagnosticId, {status: 'invalid-output', reason: rawText.trim() ? 'reasoning-only' : 'empty-output'});
+        throw new Error('世界演变接口缺少最终回答，本次未更新世界，请重试当前阶段');
+    }
     校验辅助输出完整性(rawText);
     const parsed = 解析世界演变响应(rawText);
     const commands = filterTaskViewCommands(parsed.commands, contextInfo?.views || []);
+    recordAuxiliaryResult(diagnosticId, {status: commands.length ? 'ready' : parsed.commands.length ? 'filtered' : 'no-update',
+        reason: parsed.commands.length && !commands.length ? 'state-guard' : !commands.length ? 'not-needed' : undefined,
+        parsedCommands: parsed.commands.length, acceptedCommands: commands.length, appliedCommands: 0});
     return {
+        diagnosticId,
         commands,
         updates: parsed.commands.length > 0 && commands.length === 0
             ? ['证据或索引不完整，本次保留原世界状态'] : parsed.updates,
@@ -805,9 +819,14 @@ export const generateVariableCalibrationUpdate = async (
         { role: 'assistant', content: 构建变量模型COT伪装提示词() || 默认COT伪装历史消息提示词.trim() }
     ], { 保留System: true, 合并同角色: false });
 
+    let diagnosticId: string | undefined;
+    let onlyNativeReasoning = false;
     const rawText = await 请求模型文本(apiConfig, messages, {
         temperature: 0.2,
         diagnosticTask: 'variable',
+        rejectTruncated: true,
+        onDiagnosticCall: id => { diagnosticId = id; },
+        onResponseChannels: counts => { onlyNativeReasoning = counts.reasoningChars > 0 && counts.contentChars === 0; },
         signal,
         errorDetailLimit: Number.POSITIVE_INFINITY,
         streamOptions: onStreamDelta
@@ -817,10 +836,18 @@ export const generateVariableCalibrationUpdate = async (
             }
             : undefined
     });
+    if (onlyNativeReasoning || !rawText.replace(/<\s*(think|thinking)\s*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '').trim()) {
+        recordAuxiliaryResult(diagnosticId, {status: 'invalid-output', reason: rawText.trim() ? 'reasoning-only' : 'empty-output'});
+        throw new Error('变量接口缺少最终回答，本次未更新变量，请重试当前阶段');
+    }
+    校验辅助输出完整性(rawText);
     const parsed = 解析变量校准响应(rawText);
+    recordAuxiliaryResult(diagnosticId, {status: parsed.commands.length ? 'ready' : 'no-update',
+        parsedCommands: parsed.commands.length, acceptedCommands: parsed.commands.length, appliedCommands: 0,
+        parsedAgreementCommands: parsed.commands.filter(cmd => /^(?:gameState\.)?约定列表(?:\.|\[|$)/.test(cmd.key)).length});
 
     return {
-        commands: parsed.commands,
+        diagnosticId, commands: parsed.commands,
         reports: parsed.reports,
         rawText
     };
@@ -1437,7 +1464,7 @@ const 解析规划补丁结果 = (
 
 export const generatePlanningAnalysis = async (
     params: {
-        playerName: string; currentStoryJson: string; currentHeroinePlanJson: string;
+        playerName: string; playerInput?: string; currentStoryJson: string; currentHeroinePlanJson: string;
         worldJson: string; socialJson: string; envJson: string; recentBodiesText: string;
         currentPlanText?: string; auditFocusText: string; heroineEnabled?: boolean; ntlEnabled?: boolean;
         fandomEnabled?: boolean; extraPrompt?: string; gptMode?: boolean;
@@ -1456,7 +1483,7 @@ export const generatePlanningAnalysis = async (
             heroineEnabled: params.heroineEnabled === true, ntl: params.ntlEnabled === true, fandom: params.fandomEnabled === true
         })}, required: true},
         ...(fandomSystemPrompt ? [{name: 'rules' as const, message: {role: 'system' as const, content: fandomSystemPrompt}, required: true}] : []),
-        {name: 'schema', message: {role: 'system', content: 构建统一规划分析专用上下文()}, required: true},
+        {name: 'schema', message: {role: 'system', content: 构建统一规划分析专用上下文({fandom: params.fandomEnabled})}, required: true},
         {name: 'analysis', message: {role: 'system', content: 精简统一规划分析COT提示词 + '\n' + TASK_VIEW_RULES}, required: true},
         ...(fandomCotPrompt ? [{name: 'analysis' as const, message: {role: 'system' as const, content: fandomCotPrompt}, required: true}] : [])
     ];
@@ -1468,7 +1495,7 @@ export const generatePlanningAnalysis = async (
     const env = parse(params.envJson) as any;
     const time = typeof env?.时间 === 'string' ? env.时间
         : env?.年 ? [env.年, env.月, env.日, env.时, env.分].join(':') : undefined;
-    const query = [boundedText(params.envJson, 1000), boundedText(params.auditFocusText, 2000),
+    const query = [boundedText(params.playerInput, 1800), boundedText(params.envJson, 1000), boundedText(params.auditFocusText, 2000),
         boundedText(params.currentPlanText, 2000), boundedText(params.recentBodiesText, 6000)].join('\n');
     const project = (source: string, name: InputSectionMetric['name'], root: string, share: number, social = false) => {
         const view = projectAuxiliaryState(parse(source), {name, root, maxChars: Math.floor(pool * share), query, currentTime: time, social});
@@ -1543,7 +1570,10 @@ export const generatePlanningAnalysis = async (
     commands = commands.filter(cmd => !/^(?:gameState\.)?(?:剧情|剧情规划|同人剧情规划|女主剧情规划|同人女主剧情规划)$/.test(cmd.key));
     recordAuxiliaryResult(diagnosticId, {status: !parsed.shouldUpdate ? 'no-update' : commands.length ? 'ready' : 'filtered',
         reason: !parsed.shouldUpdate ? 'not-needed' : !commands.length ? 'state-guard' : undefined,
-        parsedCommands: parsed.commands.length, acceptedCommands: commands.length, appliedCommands: 0});
+        parsedCommands: parsed.commands.length, acceptedCommands: commands.length, appliedCommands: 0,
+        parsedHeroineCommands: parsed.commands.filter(cmd => /^(?:gameState\.)?(?:同人)?女主剧情规划(?:\.|$)/.test(cmd.key)).length,
+        acceptedHeroineCommands: commands.filter(cmd => /^(?:gameState\.)?(?:同人)?女主剧情规划(?:\.|$)/.test(cmd.key)).length,
+        appliedHeroineCommands: 0});
     return {...parsed, shouldUpdate: parsed.shouldUpdate && commands.length > 0, commands, rawText, diagnosticId,
         reason: parsed.shouldUpdate && commands.length === 0 ? '规划证据或索引不完整，已保留原状态' : parsed.reason};
 };

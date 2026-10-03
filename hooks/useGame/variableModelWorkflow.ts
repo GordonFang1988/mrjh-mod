@@ -1,4 +1,5 @@
 import * as textAIService from '../../services/ai/text';
+import {recordAuxiliaryResult} from '../../services/ai/apiDiagnostics';
 import type { GameResponse, OpeningConfig, TavernCommand, 世界书结构, 内置提示词条目结构, 提示词结构 } from '../../types';
 import { 获取变量计算接口配置, 接口配置是否可用, 变量校准功能已启用 } from '../../utils/apiConfig';
 import { 规范化游戏设置 } from '../../utils/gameSettings';
@@ -53,6 +54,7 @@ type 变量模型依赖 = {
 };
 
 export type 变量模型校准结果 = {
+    diagnosticId?: string;
     commands: TavernCommand[];
     reports: string[];
     rawText: string;
@@ -77,8 +79,7 @@ const 大型数组限制映射: Record<string, number> = {
     江湖史册: 20,
     地图: 20,
     建筑: 30,
-    任务列表: 30,
-    约定列表: 30
+    任务列表: 30
 };
 
 const 忽略字段集合 = new Set([
@@ -94,6 +95,7 @@ const 忽略字段集合 = new Set([
 ]);
 
 const 清理变量模型上下文 = (value: unknown, parentKey = ''): unknown => {
+    // Agreements keep their original full indices, including newly added promises after index 29.
     if (Array.isArray(value)) {
         const limit = 大型数组限制映射[parentKey] || value.length;
         return value.slice(0, limit).map((item) => 清理变量模型上下文(item));
@@ -400,13 +402,18 @@ export const 执行变量模型校准工作流 = async (
     const normalizedReports = (Array.isArray(result.reports) ? result.reports : [])
         .map((item) => (item || '').trim())
         .filter(Boolean);
+    recordAuxiliaryResult(result.diagnosticId, {status: dedupedCommands.length ? 'ready' : result.commands.length ? 'filtered' : 'no-update',
+        reason: result.commands.length && !dedupedCommands.length ? 'state-guard' : !dedupedCommands.length ? 'not-needed' : undefined,
+        acceptedCommands: dedupedCommands.length, appliedCommands: 0,
+        acceptedAgreementCommands: dedupedCommands.filter(cmd => /^(?:gameState\.)?约定列表(?:\.|\[|$)/.test(cmd.key)).length,
+        appliedAgreementCommands: 0});
 
     if (dedupedCommands.length === 0 && normalizedReports.length === 0) {
         return null;
     }
 
     return {
-        commands: dedupedCommands,
+        diagnosticId: result.diagnosticId, commands: dedupedCommands,
         reports: normalizedReports,
         rawText: typeof result.rawText === 'string' ? result.rawText : '',
         model: variableApi.model

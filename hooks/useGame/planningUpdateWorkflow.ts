@@ -312,6 +312,7 @@ export const 创建规划更新工作流 = (deps: 规划更新工作流依赖) =
 
         const result = await textAIService.generatePlanningAnalysis({
             playerName: (deps.角色?.姓名 || '').trim() || '未命名',
+            playerInput: params.playerInput,
             currentStoryJson: JSON.stringify(planningStoryPayload, null, 2),
             currentHeroinePlanJson: JSON.stringify(planningHeroinePayload, null, 2),
             worldJson: JSON.stringify(
@@ -348,7 +349,7 @@ export const 创建规划更新工作流 = (deps: 规划更新工作流依赖) =
         const commands = [...storyCommands, ...storyPlanCommands, ...heroinePlanCommands];
         if (result.shouldUpdate && !commands.length) recordAuxiliaryResult(result.diagnosticId, {
             status: 'filtered', reason: 'state-guard', parsedCommands: result.commands.length,
-            acceptedCommands: 0, appliedCommands: 0
+            acceptedCommands: 0, appliedCommands: 0, acceptedHeroineCommands: 0, appliedHeroineCommands: 0
         });
         if (!result.shouldUpdate || commands.length === 0) {
             return {
@@ -391,7 +392,8 @@ export const 创建规划更新工作流 = (deps: 规划更新工作流依赖) =
         if (heroineEnabled && fandomEnabled) {
             deps.设置同人女主剧情规划(patched.fandomHeroinePlan);
         }
-        recordAuxiliaryResult(result.diagnosticId, {status: 'applied', acceptedCommands: commands.length, appliedCommands: commands.length});
+        recordAuxiliaryResult(result.diagnosticId, {status: 'applied', acceptedCommands: commands.length, appliedCommands: commands.length,
+            acceptedHeroineCommands: heroinePlanCommands.length, appliedHeroineCommands: heroinePlanCommands.length});
         void deps.performAutoSave({
             story: syncedPatchedStory,
             storyPlan: patched.storyPlan,

@@ -1,4 +1,5 @@
 import * as textAIService from '../../services/ai/text';
+import {recordAuxiliaryResult} from '../../services/ai/apiDiagnostics';
 import type { GameResponse, OpeningConfig, 接口设置结构, 提示词结构, 剧情系统结构, 女主剧情规划结构, 记忆系统结构, 聊天记录结构, 环境信息结构, 世界数据结构, 世界书结构 } from '../../types';
 import type { 当前可用接口结构 } from '../../utils/apiConfig';
 import { 获取世界演变接口配置, 接口配置是否可用 } from '../../utils/apiConfig';
@@ -27,6 +28,7 @@ export type 世界演变触发参数 = {
 };
 
 export type 世界演变执行结果 = {
+    diagnosticId?: string;
     ok: boolean;
     phase: 'done' | 'error' | 'skipped';
     commands: any[];
@@ -280,6 +282,10 @@ export const 执行世界演变更新工作流 = async (
                 params?.stateBase,
                 { applyState: params?.applyCommands !== false }
             );
+            recordAuxiliaryResult(result.diagnosticId, {status: params?.applyCommands === false ? 'ready' : 'applied',
+                acceptedCommands: normalizedCommands.length, appliedCommands: params?.applyCommands === false ? 0 : normalizedCommands.length});
+        } else if (rawCommandCount > 0) {
+            recordAuxiliaryResult(result.diagnosticId, {status: 'filtered', reason: 'state-guard', acceptedCommands: 0, appliedCommands: 0});
         }
 
         const updates = (Array.isArray(result.updates) ? result.updates : [])
@@ -316,6 +322,7 @@ export const 执行世界演变更新工作流 = async (
         }
         return {
             ok: true,
+            diagnosticId: result.diagnosticId,
             phase: normalizedCommands.length > 0 || updates.length > 0 ? 'done' : 'skipped',
             commands: normalizedCommands,
             updates,

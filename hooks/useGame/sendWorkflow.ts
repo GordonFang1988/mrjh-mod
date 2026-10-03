@@ -11,6 +11,7 @@ import { 环境时间转标准串 } from './timeUtils';
 import { 构建COT伪装提示词 } from './promptRuntime';
 import { 分析世界到期触发 } from './worldEvolutionUtils';
 import { 按世界演变分流净化响应 } from './storyResponseGuards';
+import {recordAuxiliaryResult} from '../../services/ai/apiDiagnostics';
 import type { 响应命令处理状态 } from './responseCommandProcessor';
 import type { 自动存档快照结构 } from './saveCoordinator';
 import type { 世界演变触发参数, 世界演变执行结果 } from './worldEvolutionWorkflow';
@@ -264,6 +265,7 @@ type 主剧情发送依赖 = {
         mergedParsed: GameResponse;
         mergedDisplayResponse: GameResponse;
         variableCalibration: {
+            diagnosticId?: string;
             commands: any[];
             reports: string[];
             rawText: string;
@@ -627,7 +629,8 @@ export const 执行主剧情发送工作流 = async (
             enableTagRepair: runtimeGameConfig.启用标签修复 !== false,
             validateTagCompleteness: runtimeGameConfig.启用标签检测完整性 === true
         });
-        let aiData = 按世界演变分流净化响应(aiResult.response, worldEvolutionSplitEnabled).response;
+        const worldSplit = 按世界演变分流净化响应(aiResult.response, worldEvolutionSplitEnabled);
+        let aiData = worldSplit.response;
         let displayAiData = aiData;
 
         const socialBeforeMainCommands = deps.深拷贝(currentState.社交);
@@ -837,7 +840,7 @@ export const 执行主剧情发送工作流 = async (
                     };
                     const result = await deps.执行世界演变更新({
                         来源: 'story_dynamic',
-                        动态世界线索: [],
+                        动态世界线索: worldSplit.appendedDynamicHints,
                         applyCommands: false,
                         currentResponse: worldContextResponse,
                         stateBase: simulatedState
@@ -971,6 +974,13 @@ export const 执行主剧情发送工作流 = async (
         };
 
         let finalState = deps.processResponseCommands(finalParsedResponse, mainCommandBaseState);
+        if (worldEvolutionResult?.commands.length) recordAuxiliaryResult(worldEvolutionResult.diagnosticId,
+            {status: 'applied', appliedCommands: worldEvolutionResult.commands.length});
+        if (variableGenerationResult?.variableCalibration?.commands.length) {
+            const calibration = variableGenerationResult.variableCalibration;
+            recordAuxiliaryResult(calibration.diagnosticId, {status: 'applied', appliedCommands: calibration.commands.length,
+                appliedAgreementCommands: calibration.commands.filter(cmd => /^(?:gameState\.)?约定列表(?:\.|\[|$)/.test(cmd.key)).length});
+        }
         const calibratedFinalStory = await 同步剧情小说分解时间校准({
             previousStory: currentState.剧情,
             nextStory: finalState.剧情,

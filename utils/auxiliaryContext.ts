@@ -82,7 +82,8 @@ export type Projection = {
     arrays: Array<{ path: string; total: number; visible: number[]; identities?: Array<{value: string; index: number}> }>;
     incomplete: string[];
 };
-const identityKey = /^(?:id|ID|姓名|名字|名称|事件名|镜头标题|标题|当前分解组)$/;
+const identityFields = ['id', 'ID', '事件名', '镜头标题', '标题', '任务名', '分歧线名', '阶段名', '女主姓名', '姓名', '名字', '名称'];
+const identityKey = /^(?:id|ID|姓名|女主姓名|名字|名称|事件名|镜头标题|标题|任务名|分歧线名|阶段名|当前分解组)$/;
 const criticalKey = /条件|约束|门槛|谁知道|谁不知道|读者视角|最早|最晚|时间|期限|当前状态|原著推进状态/;
 const hiddenSocialKey = /立绘|头像|图片|图像|资源|背包|装备|功法|技能|战斗|属性|数值|外貌描写/;
 const dateValue = (raw: unknown): number | undefined => {
@@ -159,9 +160,16 @@ export const projectAuxiliaryState = (value: unknown, options: {
             const ranked = node.map((item, index) => ({item, index, score: rank(item, index, node.length)}))
                 .sort((a, b) => b.score - a.score || b.index - a.index).slice(0, cap);
             const output: Record<string, unknown> = { __总数: node.length };
-            const identities = node.flatMap((item, index) => item && typeof item === 'object' && !Array.isArray(item)
-                ? Object.entries(item).filter(([key, child]) => identityKey.test(key) && typeof child === 'string' && child.trim())
-                    .map(([key, child]) => ({value: key + '=' + String(child).trim(), index})) : []);
+            const identities = node.flatMap((item, index) => {
+                if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+                const record = item as Record<string, unknown>;
+                // An event/shot belongs to a heroine but is identified by its own title.
+                const keys = identityFields.filter(field => typeof record[field] === 'string' && String(record[field]).trim());
+                const titles = keys.filter(field => /^(?:事件名|镜头标题|标题|任务名|分歧线名|阶段名)$/.test(field));
+                const identifying = keys.filter(field => /^(?:id|ID)$/.test(field)
+                    || (titles.length ? titles.includes(field) : !/^(?:id|ID)$/.test(field)));
+                return identifying.map(key => ({value: key + '=' + String(record[key]).trim(), index}));
+            });
             const scope = {path, total: node.length, visible: [] as number[], identities};
             arrays.push(scope);
             for (const {item, index} of ranked) {
@@ -226,7 +234,11 @@ export const filterTaskViewCommands = <T extends {key: string; action: string; v
         const value = JSON.stringify(cmd.value ?? null);
         if (/__总数|〔节选|〔未展示|〔字段未完整|资料未完整展示/.test(key + value)) return false;
         for (const view of projections) {
+            const appendsToArray = cmd.action === 'push' && view.arrays.some(scope => scope.path === key);
             for (const scope of view.arrays) {
+                // Appending a new sibling does not overwrite an older sibling's excerpted facts.
+                // Keep checking the target identity and its ancestors' original indices.
+                if (appendsToArray && scope.path !== key && relatedPath(scope.path, key)) continue;
                 if (cmd.action === 'push' && key === scope.path) {
                     if (cmd.value && typeof cmd.value === 'object' && !Array.isArray(cmd.value)
                         && Object.entries(cmd.value).some(([field, child]) => (scope.identities || [])
