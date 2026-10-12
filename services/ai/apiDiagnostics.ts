@@ -1,5 +1,6 @@
 /** Bounded local metrics only. Request/response bodies and credentials never enter the log. */
 import type { AuxiliaryInputMetric, InputSectionMetric } from '../../utils/auxiliaryContext';
+import {AUXILIARY_FORMAT_ISSUES, type AuxiliaryFormatIssue, type AuxiliaryFormatRepair} from './auxiliaryOutputValidation';
 export const API_DIAGNOSTIC_LIMIT = 60;
 const STORAGE_KEY = 'mrjh-api-diagnostics:v1';
 const tasks = ['story', 'world-evolution', 'planning', 'variable', 'recall', 'polish', 'world-generation', 'realm-generation', 'novel', 'connection-test', 'other'] as const;
@@ -12,6 +13,8 @@ export type AuxiliaryResultMetric = {
     parsedCommands?: number; acceptedCommands?: number; appliedCommands?: number;
     parsedHeroineCommands?: number; acceptedHeroineCommands?: number; appliedHeroineCommands?: number;
     parsedAgreementCommands?: number; acceptedAgreementCommands?: number; appliedAgreementCommands?: number;
+    formatIssue?: AuxiliaryFormatIssue;
+    formatRepairs?: AuxiliaryFormatRepair[];
 };
 export type ApiAttemptMetric = {
     number: number; requestedStream: boolean; actualStream?: boolean; startedAt: number; durationMs?: number;
@@ -41,6 +44,10 @@ const safeResult = (value: any): AuxiliaryResultMetric | undefined => {
     if (!['invalid-output','no-update','filtered','ready','applied'].includes(value?.status)) return undefined;
     return {status: value.status,
         reason: ['reasoning-only','empty-output','invalid-format','state-guard','not-needed'].includes(value.reason) ? value.reason : undefined,
+        formatIssue: AUXILIARY_FORMAT_ISSUES.includes(value.formatIssue) ? value.formatIssue : undefined,
+        formatRepairs: Array.isArray(value.formatRepairs)
+            ? [...new Set(value.formatRepairs.filter((item: unknown) => item === 'closed-thinking' || item === 'closed-explanation'))].slice(0, 2) as AuxiliaryFormatRepair[]
+            : undefined,
         parsedCommands: numeric(value.parsedCommands), acceptedCommands: numeric(value.acceptedCommands),
         appliedCommands: numeric(value.appliedCommands),
         parsedHeroineCommands: numeric(value.parsedHeroineCommands),
@@ -127,6 +134,8 @@ export const recordAuxiliaryResult = (id: string | undefined, result: AuxiliaryR
     if (record) {
         const clean = safeResult(result);
         if (clean) record.result = {...clean,
+            formatIssue: clean.formatIssue ?? record.result?.formatIssue,
+            formatRepairs: clean.formatRepairs ?? record.result?.formatRepairs,
             parsedCommands: clean.parsedCommands ?? record.result?.parsedCommands,
             acceptedCommands: clean.acceptedCommands ?? record.result?.acceptedCommands,
             appliedCommands: clean.appliedCommands ?? record.result?.appliedCommands,

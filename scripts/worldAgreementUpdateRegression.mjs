@@ -134,11 +134,54 @@ try {
         await assert.rejects(run, /截断|上限|不完整/);
         reply({reasoning_content: '分析已发生事实', content: task === 'world' ? worldFinal : final});
         assert.ok((await run()).commands.length > 0, 'Same-frame reasoning and content must preserve final commands');
+        const complete = task === 'world' ? worldFinal : final;
+        for (const [source, repairs] of [
+            ['<thinking>简短依据\n' + complete, ['closed-thinking']],
+            [complete.replace('</说明>', ''), ['closed-explanation']],
+            ['<thinking>简短依据\n' + complete.replace('</说明>', ''), ['closed-thinking','closed-explanation']]
+        ]) {
+            reply({content: source});
+            const recovered = await run();
+            assert.equal(recovered.commands.length, task === 'world' ? 1 : 2);
+            assert.equal(recovered.rawText, source, 'Original provider output stays unchanged for review');
+            metric = api.exportApiDiagnostics().calls.at(-1).result;
+            assert.deepEqual(metric.formatRepairs, repairs);
+            assert.equal(metric.appliedCommands, 0);
+        }
+        reply({content: complete.replace('</命令>', '')});
+        await assert.rejects(run, /命令块缺少结束标签/);
+        metric = api.exportApiDiagnostics().calls.at(-1).result;
+        assert.equal(metric.status, 'invalid-output');
+        assert.equal(metric.formatIssue, 'unclosed-commands');
+        assert.equal(metric.appliedCommands, 0);
+        reply({content: '<thinking>只有未完成的分析'});
+        await assert.rejects(run, /思考块未结束/);
+        assert.equal(api.exportApiDiagnostics().calls.at(-1).result.formatIssue, 'unclosed-thinking');
+        reply({content: '{"action":"set","key":"环境.天气","value":"晴"\n'});
+        await assert.rejects(run, /JSON 命令未完整/);
+        assert.equal(api.exportApiDiagnostics().calls.at(-1).result.formatIssue, 'invalid-json');
+        reply({content: '<说明>- 新增事件</说明><命令>push 世界.进行中事件 = {"事件名":"未结束"\n</命令>'});
+        await assert.rejects(run, /JSON 命令未完整/);
+        assert.equal(api.exportApiDiagnostics().calls.at(-1).result.formatIssue, 'invalid-json');
+        reply({content: complete.replace('</说明>', '')}, 'length');
+        await assert.rejects(run, /截断/);
+        reply({content: '<thinking>确认字符串含协议示例</thinking><说明>- 已确认</说明><命令>'
+            + 'set 环境.天气 = "文字中的<说明>和<thinking>示例</thinking>"\n</命令>'});
+        assert.equal((await run()).commands[0].value, '文字中的<说明>和<thinking>示例</thinking>',
+            'Quoted tag examples must not be interpreted as open protocol blocks');
+        reply({content: [
+            '{"action":"set","key":"环境.天气","value":"晴"}',
+            '{"action":"set","key":"环境.当前地点","value":"山门"}'
+        ].join('\n')});
+        assert.equal((await run()).commands.length, 2, 'Complete JSON command lines are a supported response format');
+        const wire = requests.at(-1).messages.map(message => message.content).join('\n');
+        assert.ok(wire.includes('最终回答必须输出'));
+        assert.ok(!wire.includes('标题下至少输出 3 条'), 'Internal audit must not force lengthy printed thinking');
     }
     assert.equal(JSON.stringify(state), before);
     const diagnostics = JSON.stringify(api.exportApiDiagnostics());
     for (const privateText of ['既有约定32','山门会合','offline-only']) assert.ok(!diagnostics.includes(privateText));
-    console.log('World/agreement update regression passed: full agreement indices, future promises, state setters, world append guards, forwarded clues, preview/application counts, reasoning-only/truncated rejection and private diagnostics.');
+    console.log('World/agreement update regression passed: full agreement indices, future promises, state setters, world append guards, forwarded clues, bounded delimiter recovery, literal tags and JSON lines, preview/application counts, reasoning-only/truncated/incomplete rejection and private diagnostics.');
 } finally {
     globalThis.fetch = savedFetch;
     if (savedStorage) Object.defineProperty(globalThis, 'localStorage', savedStorage); else delete globalThis.localStorage;

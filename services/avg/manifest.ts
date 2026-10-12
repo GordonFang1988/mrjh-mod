@@ -95,8 +95,20 @@ export const parseAvgManifest = (raw: unknown, imageForFile: (file: string, id: 
             && item.characterKey === 'tianlong:gan-baobao' && item.gender === '女'
             && normalizeAvgTheme(item.themeId || source.themeId) === 'tianlong'
             && ageMin === 32 && ageMax === 45;
+        // These exact old Tianlong records exclude the ages found in existing saves.
+        // Correct metadata at read time so generic automatic bindings can recover.
+        const legacyBaiShijing = common.id === 'TM044'
+            && item.characterKey === 'tianlong:bai-shijing' && item.gender === '男'
+            && normalizeAvgTheme(item.themeId || source.themeId) === 'tianlong'
+            && ageMin === 55 && ageMax === 75;
+        const legacyKangMin = ['TF011', 'TV021', 'TV022'].includes(common.id)
+            && item.characterKey === 'tianlong:kang-min' && item.gender === '女'
+            && normalizeAvgTheme(item.themeId || source.themeId) === 'tianlong'
+            && ageMin === 30 && ageMax === 40;
         const calibratedAgeMin = legacyZhongLing ? 16
             : legacyGanBaobao ? 30
+            : legacyBaiShijing ? 45
+            : legacyKangMin ? 28
             : item.characterKey === 'shuihu_jinpingmei:wu-da-lang' && Number(ageMin) === 35 ? 30 : Number(ageMin);
         result.portraits.push({ id: common.id, image: common.image, version: common.version, legacyAssetIds: legacyIds(common.item.legacyAssetIds),
             gender: item.gender,

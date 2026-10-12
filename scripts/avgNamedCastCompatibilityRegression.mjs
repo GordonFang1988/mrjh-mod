@@ -26,12 +26,30 @@ const raw={version:1,portraits:[
  make('TM002','段誉','tianlong:duan-yu',{gender:'男',ageRange:{min:18,max:26}}),
  make('TM023','左子穆','tianlong:zuo-zimu',{gender:'男',ageRange:{min:45,max:60}}),
  make('TM025','马五德','tianlong:ma-wude',{gender:'男',ageRange:{min:45,max:65}}),
+ make('TM044','白世镜','tianlong:bai-shijing',{gender:'男',visualAge:'elder',ageRange:{min:55,max:75},
+  profile:{视觉年龄:'elder',服饰类别:'武林袍服'}}),
+ make('TF011','康敏','tianlong:kang-min',{visualAge:'middle',ageRange:{min:30,max:40},
+  profile:{视觉年龄:'middle',服饰类别:'富贵华服'}}),
+ ...['TV021','TV022'].map((id,i)=>make(id,'康敏','tianlong:kang-min',{visualAge:'middle',
+  ageRange:{min:30,max:40},profile:{视觉年龄:'middle',服饰类别:'富贵华服'},
+  baseAssetId:'TF011',variantStage:'outfit-'+(i+1)})),
  make('RPF1529','大院女护卫',undefined,{themeId:undefined,ageRange:{min:26,max:35},profile:{视觉年龄:'young',服饰类别:'江湖劲装'}})
 ]};
 const parse=value=>parseAvgManifest(value,file=>'avgpack://'+packKey+'/'+file);
 const original=JSON.stringify(raw);
 const parsed=parse(raw);assert.deepEqual(parsed.errors,[]);
 for(const id of ['TF009','TV017','TV018'])assert.deepEqual(parsed.portraits.find(a=>a.id===id).ageRange,{min:30,max:45});
+assert.deepEqual(parsed.portraits.find(a=>a.id==='TM044').ageRange,{min:45,max:75});
+for(const id of ['TF011','TV021','TV022'])assert.deepEqual(parsed.portraits.find(a=>a.id===id).ageRange,{min:28,max:40});
+for(const id of ['TM044','TF011','TV021','TV022']) {
+ const entry=raw.portraits.find(a=>a.id===id);
+ for(const extra of [{id:'OTHER'},{characterKey:'tianlong:other'},{themeId:'shuihu-jinpingmei'},
+  {gender:entry.gender==='男'?'女':'男'},{ageRange:{min:entry.ageRange.min+1,max:entry.ageRange.max}},
+  {ageRange:{min:entry.ageRange.min,max:entry.ageRange.max+1}}]) {
+  const untouched={...entry,...extra};
+  assert.deepEqual(parse({version:1,portraits:[untouched]}).portraits[0]?.ageRange,untouched.ageRange);
+ }
+}
 assert.equal(JSON.stringify(raw),original);
 const corrected=structuredClone(raw);corrected.portraits.filter(a=>a.characterKey==='tianlong:gan-baobao').forEach(a=>a.ageRange.min=30);
 assert.deepEqual(parse(corrected),parsed);
@@ -61,13 +79,35 @@ const zhong={id:'NPC005',姓名:'钟灵',性别:'女',年龄:16,AVG立绘特征:
 const ganNpc={id:'NPC007',姓名:'甘宝宝',性别:'女',年龄:30,AVG立绘特征:{视觉年龄:'young',服饰类别:'江湖劲装'}};
 const males=[{id:'NPC004',姓名:'段誉',性别:'男',年龄:19},
  {id:'NPC006',姓名:'左子穆',性别:'男',年龄:50},{id:'NPC003',姓名:'马五德',性别:'男',年龄:55}];
-const social=[zhong,ganNpc,...males];
+const bai={id:'NPC012',姓名:'白世镜',性别:'男',年龄:45};
+const kang={id:'NPC013',姓名:'康敏',性别:'女',年龄:28};
+const social=[zhong,ganNpc,...males,bai,kang];
 const logs=social.map(n=>({sender:n.姓名,text:'测试对白'}));
 const resolve=(people=social,history=[],chosenTheme=theme,choices=assets)=>resolveAvgPortraits(logs,people,history,choices,chosenTheme);
 const selected=resolve();
 assert.equal(selected.钟灵.assetId,packKey+':TF005');assert.equal(selected.甘宝宝.assetId,packKey+':TF009');
 assert.equal(selected.钟灵.characterKey,'tianlong:zhong-ling');assert.equal(selected.甘宝宝.characterKey,'tianlong:gan-baobao');
 for(const [name,id] of [['段誉','TM002'],['左子穆','TM023'],['马五德','TM025']])assert.equal(selected[name].assetId,packKey+':'+id);
+assert.equal(selected.白世镜.assetId,packKey+':TM044');
+assert.equal(selected.康敏.assetId,packKey+':TF011');
+if(process.argv[3]) {
+ const diagnostic=JSON.parse(readFileSync(process.argv[3],'utf8'));
+ assert.equal(diagnostic.theme,'tianlong');
+ for(const person of [bai,kang]) {
+  const report=diagnostic.recentPortraits.find(a=>a.sender===person.姓名);
+  assert.ok(report);assert.equal(report.npcId,person.id);assert.equal(report.age,person.年龄);
+  const replay={role:'assistant',timestamp:1,structuredResponse:{
+   logs:[{sender:person.姓名,text:'诊断重放'}],avgPortraitBindings:{[person.姓名]:report.binding}}};
+  const corrected=resolveAvgPortraits(replay.structuredResponse.logs,[person],[replay],assets,diagnostic.theme)[person.姓名];
+  assert.equal(corrected.assetId,selected[person.姓名].assetId);
+  assert.notEqual(corrected.assetId,report.binding.assetId);
+ }
+}
+for(const [person,id,min,max] of [[bai,'TM044',45,75],[kang,'TF011',28,40]]) {
+ for(const age of [min,max])assert.equal(resolve([{...person,年龄:age}])[person.姓名].assetId,packKey+':'+id);
+ for(const age of [min-1,max+1])assert.notEqual(resolve([{...person,年龄:age}])[person.姓名].assetId,packKey+':'+id);
+ for(const wrongTheme of ['','shuihu-jinpingmei'])assert.notEqual(resolve([person],[],wrongTheme)[person.姓名].assetId,packKey+':'+id);
+}
 for(const wrongTheme of ['','shuihu-jinpingmei']) {
  assert.notEqual(resolve(social,[],wrongTheme).钟灵.assetId,selected.钟灵.assetId);
  assert.notEqual(resolve(social,[],wrongTheme).甘宝宝.assetId,selected.甘宝宝.assetId);
@@ -84,6 +124,8 @@ const themedGeneric={...teen,id:'sh-generic',themeId:theme,label:'通用江湖�
 assert.equal(resolveAvgPortraits([{sender:'路人',text:'测试'}],[...social,ordinary],[],[...assets,themedGeneric],theme).路人.assetId,'sh-generic');
 const oldBindings={钟灵:avgBindingForAsset(zhong.id,teen,'existing-binding'),
  甘宝宝:avgBindingForAsset(ganNpc.id,assets.find(a=>a.id===packKey+':RPF1529'),'first-match'),
+ 白世镜:avgBindingForAsset(bai.id,assets.find(a=>a.id===packKey+':RSHM378')||maleGeneric,'first-match'),
+ 康敏:avgBindingForAsset(kang.id,assets.find(a=>a.id===packKey+':cocv2_f005')||assets.find(a=>a.id===packKey+':RPF1529'),'first-match'),
  ...Object.fromEntries(males.map(n=>[n.姓名,avgBindingForAsset(n.id,maleGeneric,'existing-binding')]))};
 const commands=[{action:'set',key:'环境.具体地点',value:'大厅'}];
 const turn={role:'assistant',timestamp:1,content:'saved',rawJson:'untouched',structuredResponse:{logs,
@@ -93,7 +135,7 @@ assert.equal(resolve(social,history).钟灵.assetId,selected.钟灵.assetId);
 assert.equal(resolve(social,history).甘宝宝.assetId,selected.甘宝宝.assetId);
 globalThis.namedCastPack={portraits:assets,missing:new Set(),readFailure:false};
 const repaired=await recoverMissingAvgArt(history,social,theme);
-assert.equal(repaired.repaired,5);
+assert.equal(repaired.repaired,7);
 for(const name of Object.keys(selected))assert.equal(repaired.history[0].structuredResponse.avgPortraitBindings[name].assetId,selected[name].assetId);
 assert.equal(repaired.history[0].rawJson,turn.rawJson);assert.equal(repaired.history[0].structuredResponse.logs,logs);
 assert.equal(repaired.history[0].structuredResponse.body_original_logs,logs);assert.equal(repaired.history[0].structuredResponse.tavern_commands,commands);
@@ -112,7 +154,7 @@ assert.equal(resolve(manualSocial,history).钟灵.assetId,teen.id);
 const generated=social.map(n=>({...n,图片档案:{已选立绘图片ID:n.id,生图历史:[{id:n.id,状态:'success',构图:'立绘',图片URL:'/mine.png'}]}}));
 assert.equal(resolve(generated,history).钟灵.assetId,'archive:NPC005');
 assert.equal(resolve(generated,history).甘宝宝.assetId,'archive:NPC007');
-for(const name of ['钟灵','甘宝宝']) {
+for(const name of ['钟灵','甘宝宝','康敏']) {
  const binding=selected[name],options=avgSamePersonOptions(binding,assets);
  assert.equal(options.length,3);
  const person=social.find(n=>n.姓名===name);
@@ -135,7 +177,7 @@ const wrongDiagnostic=await buildAvgDiagnostic({history,social,environment:{},th
 assert.ok(wrongDiagnostic.latestTurn.portraits.every(actor=>actor.otherThemeNamedCandidates.some(a=>a.theme==='tianlong')));
 const ganOnly={...turn,timestamp:2,structuredResponse:{...turn.structuredResponse,logs:[logs[1]],avgPortraitBindings:{甘宝宝:oldBindings.甘宝宝}}};
 const recentDiagnostic=await buildAvgDiagnostic({history:[turn,ganOnly],social,environment:{},theme});
-assert.equal(recentDiagnostic.latestTurn.portraits.length,1);assert.equal(recentDiagnostic.recentPortraits.length,5);
+assert.equal(recentDiagnostic.latestTurn.portraits.length,1);assert.equal(recentDiagnostic.recentPortraits.length,7);
 assert.ok(recentDiagnostic.recentPortraits.every(actor=>actor.namedCandidates[0].ageMatches));
 const manySocial=Array.from({length:25},(_,i)=>({...ganNpc,id:'bounded-'+i,姓名:'测试人物'+i}));
 const manyTurn={...turn,structuredResponse:{...turn.structuredResponse,logs:[],avgPortraitBindings:Object.fromEntries(manySocial.map(n=>[n.姓名,{...oldBindings.甘宝宝,npcId:n.id}]))}};

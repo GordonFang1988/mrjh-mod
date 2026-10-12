@@ -51,6 +51,7 @@ import {
     解析命令块
 } from './storyResponseParser';
 import { recordAuxiliaryResult } from './apiDiagnostics';
+import { validateAuxiliaryOutput, stripAuxiliaryThoughts, AuxiliaryOutputStructureError } from './auxiliaryOutputValidation';
 
 export interface ConnectionTestResult {
     ok: boolean;
@@ -58,16 +59,19 @@ export interface ConnectionTestResult {
 }
 
 const 校验辅助输出完整性 = (rawText: string): void => {
-    for (const tag of ['thinking', '说明', '命令']) {
-        if (new RegExp('<\\s*' + tag + '\\s*>', 'i').test(rawText)
-            && !new RegExp('<\\s*/\\s*' + tag + '\\s*>', 'i').test(rawText)) {
-            throw new Error('辅助任务输出结构不完整，本次结果不写入存档');
-        }
-    }
-    const body = rawText.replace(/<(think|thinking)>[\s\S]*?<\/\1>/gi, '')
-        .replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-    if (body.startsWith('{') || body.startsWith('[')) {
-        try { JSON.parse(body); } catch { throw new Error('辅助任务输出结构不完整，本次结果不写入存档'); }
+    validateAuxiliaryOutput(rawText);
+};
+
+const 规范化辅助任务输出 = (rawText: string, diagnosticId?: string): string => {
+    try {
+        const checked = validateAuxiliaryOutput(rawText, {recoverBoundaries: true, allowCommandSequence: true});
+        if (checked.repairs.length) recordAuxiliaryResult(diagnosticId, {status: 'ready', formatRepairs: checked.repairs});
+        return checked.text;
+    } catch (error) {
+        recordAuxiliaryResult(diagnosticId, {status: 'invalid-output', reason: 'invalid-format',
+            formatIssue: error instanceof AuxiliaryOutputStructureError ? error.issue : undefined,
+            acceptedCommands: 0, appliedCommands: 0});
+        throw error;
     }
 };
 
@@ -568,43 +572,15 @@ const 解析世界演变候选文本 = (text: string): { commands: TavernCommand
 };
 
 const 解析世界演变响应 = (rawText: string): { commands: TavernCommand[]; updates: string[] } => {
-    const source = (rawText || '').trim();
+    const source = stripAuxiliaryThoughts(rawText || '').trim();
     if (!source) return { commands: [], updates: [] };
-
-    const thinkingSegment = 提取首尾思考区段(source);
-    const candidates = [
-        (thinkingSegment.matched ? thinkingSegment.textWithoutThinking : source).trim(),
-        thinkingSegment.matched
-            ? source
-                .replace(/<\s*\/\s*(thinking|think)\s*>/gi, '')
-                .replace(/<\s*(thinking|think)\s*>/gi, '')
-                .trim()
-            : '',
-        source
-    ].filter((item, index, list) => Boolean(item) && list.indexOf(item) === index);
-
-    for (const candidate of candidates) {
-        const parsed = 解析世界演变候选文本(candidate);
-        if (parsed.commands.length > 0 || parsed.updates.length > 0) {
-            return parsed;
-        }
-    }
-
-    return { commands: [], updates: [] };
+    return 解析世界演变候选文本(source);
 };
 
 const 解析变量校准响应 = (rawText: string): { commands: TavernCommand[]; reports: string[] } => {
-    const source = (rawText || '').trim();
+    const source = stripAuxiliaryThoughts(rawText || '').trim();
     if (!source) return { commands: [], reports: [] };
-
-    const thinkingSegment = 提取首尾思考区段(source);
-    let textWithoutThinking = (thinkingSegment.matched ? thinkingSegment.textWithoutThinking : source).trim();
-    if (thinkingSegment.matched && !textWithoutThinking) {
-        textWithoutThinking = source
-            .replace(/<\s*\/\s*(thinking|think)\s*>/gi, '')
-            .replace(/<\s*(thinking|think)\s*>/gi, '')
-            .trim();
-    }
+    const textWithoutThinking = source;
     const reportBlock = 提取首个标签内容(textWithoutThinking, '说明')
         || 提取首个标签内容(textWithoutThinking, '校准说明')
         || 提取首个标签内容(textWithoutThinking, '校准报告')
@@ -699,8 +675,8 @@ export const generateWorldEvolutionUpdate = async (
         recordAuxiliaryResult(diagnosticId, {status: 'invalid-output', reason: rawText.trim() ? 'reasoning-only' : 'empty-output'});
         throw new Error('世界演变接口缺少最终回答，本次未更新世界，请重试当前阶段');
     }
-    校验辅助输出完整性(rawText);
-    const parsed = 解析世界演变响应(rawText);
+    const validatedText = 规范化辅助任务输出(rawText, diagnosticId);
+    const parsed = 解析世界演变响应(validatedText);
     const commands = filterTaskViewCommands(parsed.commands, contextInfo?.views || []);
     recordAuxiliaryResult(diagnosticId, {status: commands.length ? 'ready' : parsed.commands.length ? 'filtered' : 'no-update',
         reason: parsed.commands.length && !commands.length ? 'state-guard' : !commands.length ? 'not-needed' : undefined,
@@ -840,8 +816,8 @@ export const generateVariableCalibrationUpdate = async (
         recordAuxiliaryResult(diagnosticId, {status: 'invalid-output', reason: rawText.trim() ? 'reasoning-only' : 'empty-output'});
         throw new Error('变量接口缺少最终回答，本次未更新变量，请重试当前阶段');
     }
-    校验辅助输出完整性(rawText);
-    const parsed = 解析变量校准响应(rawText);
+    const validatedText = 规范化辅助任务输出(rawText, diagnosticId);
+    const parsed = 解析变量校准响应(validatedText);
     recordAuxiliaryResult(diagnosticId, {status: parsed.commands.length ? 'ready' : 'no-update',
         parsedCommands: parsed.commands.length, acceptedCommands: parsed.commands.length, appliedCommands: 0,
         parsedAgreementCommands: parsed.commands.filter(cmd => /^(?:gameState\.)?约定列表(?:\.|\[|$)/.test(cmd.key)).length});

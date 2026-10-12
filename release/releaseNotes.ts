@@ -3,6 +3,18 @@ export interface ReleaseNoteUpdate {
 }
 export interface ReleaseNoteEntry { id: string; date: string; updates: readonly ReleaseNoteUpdate[]; }
 export const releaseNotes: readonly ReleaseNoteEntry[] = [{
+    id: '2026-10-12', date: '2026年10月12日', updates: [{
+        id: '2026-10-12-v1.1.5', time: '23:34', version: 'v1.1.5',
+        title: '修复具名立绘年龄兼容与辅助任务格式误判',
+        summary: '校正白世镜、康敏旧图包年龄标注，并兼容命令完整时的部分辅助输出格式偏差。',
+        items: [
+            '白世镜 TM044 旧年龄标注兼容到 45–75 岁，康敏 TF011 及两套换装兼容到 28–40 岁；无需重导图包或修改人物年龄。',
+            '天龙主题下，正确图片可读取时恢复此前自动误绑的通用立绘；保留手动选择、自生成立绘与既有具名形象。',
+            '世界与变量任务在命令完整有效时兼容思考或说明结束标签遗漏，支持逐行 JSON 命令；仍拒绝截断、无效或只有思考的结果。',
+            '减少辅助任务强制输出长篇思考的要求，近期诊断记录具体格式问题与兼容修复情况，便于区分接口响应和实际写回。'
+        ]
+    }]
+}, {
     id: '2026-10-03', date: '2026年10月3日', updates: [{
         id: '2026-10-03-v1.1.4', time: '17:16', version: 'v1.1.4',
         title: '修复女主规划、约定与世界事件更新',
